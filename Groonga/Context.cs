@@ -10,8 +10,9 @@ namespace Spica.Data.Groonga
 	{
 		public GroongaResultCode Result { get; private set; }
 
-		public GroongaException(GroongaResultCode result) 		{
-			Result = result; 
+		public GroongaException(GroongaResultCode result)
+		{
+			Result = result;
 		}
 
 		public GroongaException(GroongaResultCode result, String message)

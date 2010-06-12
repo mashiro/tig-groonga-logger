@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Xml.Linq;
 using System.Runtime.Serialization;
+using System.Reflection;
 using Misuzilla.Net.Irc;
 using Misuzilla.Applications.TwitterIrcGateway;
 using Misuzilla.Applications.TwitterIrcGateway.AddIns;
@@ -14,13 +15,6 @@ using Spica.Data.Groonga;
 
 namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 {
-	public class GroongaLoggerException : Exception
-	{
-		public GroongaLoggerException() { }
-		public GroongaLoggerException(string message) : base(message) { }
-		public GroongaLoggerException(string message, Exception inner) : base(message, inner) { }
-	}
-
 	public class GroongaLoggerContext : Context
 	{
 	}
@@ -39,9 +33,9 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 
 	public class GroongaLoggerAddIn : AddInBase
 	{
-		public const String DefautlUserTableName = "TwitterUser";
-		public const String DefautlStatusTableName = "TwitterStatus";
-		public const String DefautlBigramTableName = "TwitterBigram";
+		public const String DefaultUserTableName = "TwitterUser";
+		public const String DefaultStatusTableName = "TwitterStatus";
+		public const String DefaultTermTableName = "TwitterTerm";
 
 		public GroongaLoggerConfigration Config { get; set; }
 
@@ -198,6 +192,10 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 			}
 		}
 
+		/// <summary>
+		/// ステータスをデータストアに格納します。
+		/// </summary>
+		/// <param name="statuses">ステータス</param>
 		private void StoreStatuses(IEnumerable<Status> statuses)
 		{
 			var usersJson = String.Join(",", statuses
@@ -210,9 +208,9 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 				.Select(s => JsonUtility.Serialize(ToGroongaStatus(s)))
 				.ToArray());
 
-			Execute("load --table {0}", UserTableName);
+			Execute("load --table {0}", ToUniqueTableName(DefaultUserTableName));
 			Execute("[" + usersJson + "]");
-			Execute("load --table {0}", StatusTableName);
+			Execute("load --table {0}", ToUniqueTableName(DefaultStatusTableName));
 			Execute("[" + statusesJson + "]");
 		}
 		#endregion
@@ -275,22 +273,166 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		#endregion
 
 		#region Table
-		public String StatusTableName { get { return "TwitterStatus_" + CurrentSession.TwitterUser.Id; } }
-		public String UserTableName { get { return "TwitterUser_" + CurrentSession.TwitterUser.Id; } }
-		public String BigramTableName { get { return "TwitterBigram_" + CurrentSession.TwitterUser.Id; } }
+		/// <summary>
+		/// テーブルを初期化します。
+		/// </summary>
+		private void InitializeTables()
+		{
+			var tables = new MemberInfo[] {
+				typeof(GroongaLoggerUser),
+				typeof(GroongaLoggerStatus),
+				typeof(GroongaLoggerTerm)
+			};
+
+			CreateTables(tables);
+		}
+
+		/// <summary>
+		/// テーブルを作成します。
+		/// </summary>
+		/// <param name="tables"></param>
+		private void CreateTables(IEnumerable<MemberInfo> tables)
+		{
+			var tableNames = GetTableNames();
+
+			foreach (var table in tables)
+			{
+				var attribute = GetCustomAttribute<GroongaLoggerTableAttribute>(table);
+				if (attribute != null)
+				{
+					// ユーザー固有のテーブル名に変換
+					attribute.Name = ToUniqueTableName(attribute.Name);
+
+					if (!tableNames.Contains(attribute.Name))
+					{
+						try
+						{
+							CreateTable(attribute);
+							CreateColumns(attribute.Name, table.GetType().GetMembers(BindingFlags.Public | BindingFlags.Instance));
+						}
+						catch (Exception)
+						{
+						}
+					}
+				}
+			}
+		}
+
+		/// <summary>
+		/// カラムを作成します。
+		/// </summary>
+		private void CreateColumns(String tableName, IEnumerable<MemberInfo> columns)
+		{
+			var columnNames = GetColumnNames(tableName);
+
+			foreach (var column in columns)
+			{
+				var attribute = GetCustomAttribute<GroongaLoggerColumnAttribute>(column);
+				if (attribute != null)
+				{
+					if (!columnNames.Contains(attribute.Name))
+					{
+						try
+						{
+							// ユーザー固有のテーブル名に変換
+							attribute.Table = tableName;
+							attribute.Type = ToUniqueTableName(attribute.Type);
+
+							CreateColumn(attribute);
+						}
+						catch (Exception)
+						{
+						}
+					}
+				}
+			}
+		}
+
+		/// <summary>
+		/// 属性からテーブルを作成します。
+		/// </summary>
+		/// <param name="attribute">テーブルの属性</param>
+		private void CreateTable(GroongaLoggerTableAttribute attribute)
+		{
+			var options = new Dictionary<String, String>() {
+				{ "name", attribute.Name },
+				{ "flags", attribute.Flags },
+				{ "key_type", attribute.KeyType },
+				{ "value_type", attribute.ValueType },
+				{ "default_tokenizer", attribute.DefaultTokenizer }
+			};
+
+			var result = Execute("table_create {0}", ParseOptions(options));
+			if (String.IsNullOrEmpty(result))
+				throw new Exception(String.Format("テーブル {0} の作成に失敗しました。", attribute.Name));
+		}
+
+		/// <summary>
+		/// 属性からカラムを作成します。
+		/// </summary>
+		/// <param name="attribute">カラムの属性</param>
+		private void CreateColumn(GroongaLoggerColumnAttribute attribute)
+		{
+			var options = new Dictionary<String, String>() {
+				{ "table", attribute.Table },
+				{ "name", attribute.Name },
+				{ "flags", attribute.Flags },
+				{ "type", attribute.Type },
+				{ "source", attribute.Source }
+			};
+
+			var result = Execute("column_create {0}", ParseOptions(options));
+			if (String.IsNullOrEmpty(result))
+				throw new Exception(String.Format("テーブル {0} カラム {1} の作成に失敗しました。", attribute.Table, attribute.Name));
+		}
+
+		/// <summary>
+		/// カスタム属性を取得します。
+		/// </summary>
+		/// <typeparam name="TAttribute">属性の型</typeparam>
+		/// <param name="memberInfo">属性を取得するメンバ</param>
+		/// <returns>属性</returns>
+		private TAttribute GetCustomAttribute<TAttribute>(MemberInfo memberInfo) where TAttribute : class
+		{
+			return Attribute.GetCustomAttribute(memberInfo, typeof(TAttribute)) as TAttribute;
+		}
+
+		/// <summary>
+		/// ユーザー固有のテーブル名に変換します。
+		/// </summary>
+		/// <param name="tableName">テーブル名</param>
+		/// <returns>ユーザー固有のテーブル名</returns>
+		public String ToUniqueTableName(String tableName)
+		{
+			if (String.Compare(tableName, DefaultUserTableName) == 0 ||
+				String.Compare(tableName, DefaultStatusTableName) == 0 ||
+				String.Compare(tableName, DefaultTermTableName) == 0)
+			{
+				return String.Format("{0}_{1}", tableName, CurrentSession.TwitterUser.Id);
+			}
+
+			return tableName;
+		}
 
 		/// <summary>
 		/// Groonga のテーブル名の一覧を取得します。
 		/// </summary>
 		/// <returns>テーブル名の一覧</returns>
-		private List<String> GetTableNames()
+		private IEnumerable<String> GetTableNames()
 		{
+#if true
+			var json = Execute("table_list");
+			var response = new GroongaResponse<GroongaResponseData>();
+			response.Parse(JsonUtility.Parse(json));
+			foreach (var item in response.Data.Items)
+				yield return (String)item["name"];
+#else
 			var json = Execute("table_list");
 			return JsonUtility.Parse(json)
 				.IndexOf(1).Elements()
 				.Where((e, n) => n >= 1)
-				.Select(e => e.IndexOf(1).Value)
-				.ToList();
+				.Select(e => e.IndexOf(1).Value);
+#endif
 		}
 
 		/// <summary>
@@ -298,113 +440,22 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		/// </summary>
 		/// <param name="tableName">テーブル名</param>
 		/// <returns>カラム名の一覧</returns>
-		private List<String> GetColumnNames(String tableName)
+		private IEnumerable<String> GetColumnNames(String tableName)
 		{
+#if true
+			var json = Execute("table_list --table {0}", tableName);
+			var response = new GroongaResponse<GroongaResponseData>();
+			response.Parse(JsonUtility.Parse(json));
+			foreach (var item in response.Data.Items)
+				yield return (String)item["name"];
+#else
 			var json = Execute("table_list --table {0}", tableName);
 			return JsonUtility.Parse(json)
 				.IndexOf(1).Elements()
 				.Where((e, n) => n >= 1)
 				.Select(e => e.IndexOf(1).Value)
 				.ToList();
-		}
-
-		/// <summary>
-		/// テーブルを初期化します。
-		/// </summary>
-		private void InitializeTables()
-		{
-			var tableNames = GetTableNames();
-			InitializeUserTable(tableNames);
-			InitializeStatusTable(tableNames);
-			InitializeBigramTable(tableNames);
-		}
-
-		/// <summary>
-		/// User テーブルの初期化を行います。
-		/// </summary>
-		private void InitializeUserTable(List<String> tableNames)
-		{
-			var columnNames = GetColumnNames(UserTableName);
-			CreateTable(tableNames, UserTableName, "TABLE_HASH_KEY", "ShortText", null);
-			CreateColumn(columnNames, UserTableName, "name", "COLUMN_SCALAR", "ShortText", null);
-			CreateColumn(columnNames, UserTableName, "screen_name", "COLUMN_SCALAR", "ShortText", null);
-			CreateColumn(columnNames, UserTableName, "location", "COLUMN_SCALAR", "ShortText", null);
-			CreateColumn(columnNames, UserTableName, "description", "COLUMN_SCALAR", "ShortText", null);
-			CreateColumn(columnNames, UserTableName, "profile_image_url", "COLUMN_SCALAR", "ShortText", null);
-			CreateColumn(columnNames, UserTableName, "url", "COLUMN_SCALAR", "ShortText", null);
-			CreateColumn(columnNames, UserTableName, "protected", "COLUMN_SCALAR", "Bool", null);
-		}
-
-		/// <summary>
-		/// Status テーブルの初期化を行います。
-		/// </summary>
-		private void InitializeStatusTable(List<String> tableNames)
-		{
-			var columnNames = GetColumnNames(StatusTableName);
-			CreateTable(tableNames, StatusTableName, "TABLE_HASH_KEY", "ShortText", null);
-			CreateColumn(columnNames, StatusTableName, "created_at", "COLUMN_SCALAR", "Time", null);
-			CreateColumn(columnNames, StatusTableName, "text", "COLUMN_SCALAR", "ShortText", null);
-			CreateColumn(columnNames, StatusTableName, "source", "COLUMN_SCALAR", "ShortText", null);
-			CreateColumn(columnNames, StatusTableName, "truncated", "COLUMN_SCALAR", "Bool", null);
-			CreateColumn(columnNames, StatusTableName, "favorited", "COLUMN_SCALAR", "Bool", null);
-			CreateColumn(columnNames, StatusTableName, "in_reply_to_status_id", "COLUMN_SCALAR", "ShortText", null);
-			CreateColumn(columnNames, StatusTableName, "in_reply_to_user_id", "COLUMN_SCALAR", "ShortText", null);
-			CreateColumn(columnNames, StatusTableName, "retweeted_status", "COLUMN_SCALAR", StatusTableName, null);
-			CreateColumn(columnNames, StatusTableName, "user", "COLUMN_SCALAR", UserTableName, null);
-		}
-
-		/// <summary>
-		/// Bigram テーブルの初期化を行います。
-		/// </summary>
-		private void InitializeBigramTable(List<String> tableNames)
-		{
-			var columnNames = GetColumnNames(BigramTableName);
-			CreateTable(tableNames, BigramTableName, "TABLE_PAT_KEY|KEY_NORMALIZE", "ShortText", "TokenBigram");
-			CreateColumn(columnNames, BigramTableName, "index_name", "COLUMN_INDEX|WITH_POSITION", UserTableName, "name");
-			CreateColumn(columnNames, BigramTableName, "index_location", "COLUMN_INDEX|WITH_POSITION", UserTableName, "location");
-			CreateColumn(columnNames, BigramTableName, "index_description", "COLUMN_INDEX|WITH_POSITION", UserTableName, "description");
-			CreateColumn(columnNames, BigramTableName, "index_text", "COLUMN_INDEX|WITH_POSITION", StatusTableName, "text");
-		}
-
-		/// <summary>
-		/// テーブルを作成します。
-		/// </summary>
-		private void CreateTable(List<String> tableNames, String name, String flags, String key_type, String default_tokenizer)
-		{
-			if (!tableNames.Contains(name))
-			{
-				var options = new Dictionary<String, String>() {
-					{ "name", name },
-					{ "flags", flags },
-					{ "key_type", key_type },
-					{ "default_tokenizer", default_tokenizer }
-				};
-
-				var result = Execute("table_create {0}", ParseOptions(options));
-				if (String.IsNullOrEmpty(result))
-					throw new Exception(String.Format("テーブル {0} の作成に失敗しました。", name));
-			}
-		}
-
-		/// <summary>
-		/// カラムを作成します。
-		/// </summary>
-		private void CreateColumn(List<String> columnNames, String table, String name, String flags, String type, String source)
-		{
-			if (!columnNames.Contains(name))
-			{
-				var options = new Dictionary<String, String>() {
-					{ "table", table },
-					{ "name", name },
-					{ "flags", flags },
-					{ "type", type },
-					{ "source", source }
-				};
-
-				var result = Execute("column_create {0}", ParseOptions(options));
-				if (String.IsNullOrEmpty(result))
-					throw new Exception(String.Format("テーブル {0} カラム {1} の作成に失敗しました。", table, name));
-			}
+#endif
 		}
 
 		/// <summary>

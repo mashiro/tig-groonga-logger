@@ -6,12 +6,12 @@ using System.Xml.Linq;
 
 namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 {
-	public interface IGroongaResponseParsable
+	public interface IGroongaResponse
 	{
 		void Parse(XElement e);
 	}
 
-	public class GroongaResponseStatus : IGroongaResponseParsable
+	public class GroongaResponseStatus : IGroongaResponse
 	{
 		public Int32 StatusCode { get; set; }
 		public DateTime ProcessStartTime { get; set; }
@@ -26,7 +26,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		}
 	}
 
-	public class GroongaResponseData : IGroongaResponseParsable
+	public class GroongaResponseData : IGroongaResponse
 	{
 		public Int32? SearchCount { get; set; }
 		public List<Dictionary<String, Object>> Items { get; set; }
@@ -90,7 +90,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		}
 	}
 
-	public class GroongaResponseDataList : IGroongaResponseParsable
+	public class GroongaResponseDataList : IGroongaResponse
 	{
 		public List<GroongaResponseData> Items { get; set; }
 
@@ -106,8 +106,8 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		}
 	}
 
-	public class GroongaResponse<TData> : IGroongaResponseParsable
-		where TData : IGroongaResponseParsable, new()
+	public class GroongaResponse<TData> : IGroongaResponse
+		where TData : IGroongaResponse, new()
 	{
 		public GroongaResponseStatus Status { get; set; }
 		public TData Data { get; set; }

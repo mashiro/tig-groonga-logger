@@ -7,7 +7,7 @@ using System.Runtime.Serialization;
 namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 {
 	[DataContract]
-	[GroongaLoggerTable(Name = GroongaLoggerAddIn.DefautlUserTableName, Flags = "TABLE_HASH_KEY", KeyType = "ShortText")]
+	[GroongaLoggerTable(Name = GroongaLoggerAddIn.DefaultUserTableName, Flags = "TABLE_HASH_KEY", KeyType = "ShortText")]
 	public class GroongaLoggerUser
 	{
 		[DataMember(Name = "_key")]
@@ -43,7 +43,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 	}
 
 	[DataContract]
-	[GroongaLoggerTable(Name = GroongaLoggerAddIn.DefautlStatusTableName, Flags = "TABLE_HASH_KEY", KeyType = "ShortText")]
+	[GroongaLoggerTable(Name = GroongaLoggerAddIn.DefaultStatusTableName, Flags = "TABLE_HASH_KEY", KeyType = "ShortText")]
 	public class GroongaLoggerStatus
 	{
 		[DataMember(Name = "created_at")]
@@ -82,27 +82,27 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		public String InReplyToUserId { get; set; }
 
 		[DataMember(Name = "retweeted_status")]
-		[GroongaLoggerColumn(Name = "retweeted_status", Flags = "COLUMN_SCALAR", Type = GroongaLoggerAddIn.DefautlStatusTableName)]
+		[GroongaLoggerColumn(Name = "retweeted_status", Flags = "COLUMN_SCALAR", Type = GroongaLoggerAddIn.DefaultStatusTableName)]
 		public String RetweetedStatus { get; set; }
 
 		[DataMember(Name = "user")]
-		[GroongaLoggerColumn(Name = "user", Flags = "COLUMN_SCALAR", Type = GroongaLoggerAddIn.DefautlUserTableName)]
+		[GroongaLoggerColumn(Name = "user", Flags = "COLUMN_SCALAR", Type = GroongaLoggerAddIn.DefaultUserTableName)]
 		public String User { get; set; }
 	}
 
-	[GroongaLoggerTable(Name = GroongaLoggerAddIn.DefautlBigramTableName, Flags = "TABLE_PAT_KEY|KEY_NORMALIZE", KeyType = "ShortText", DefaultTokenizer = "TokenBigram")]
-	public class GroongaLoggerBigram
+	[GroongaLoggerTable(Name = GroongaLoggerAddIn.DefaultTermTableName, Flags = "TABLE_PAT_KEY|KEY_NORMALIZE", KeyType = "ShortText", DefaultTokenizer = "TokenBigram")]
+	public class GroongaLoggerTerm
 	{
-		[GroongaLoggerColumn(Name = "index_name", Flags = "COLUMN_INDEX|WITH_POSITION", Type = GroongaLoggerAddIn.DefautlUserTableName, Source = "name")]
+		[GroongaLoggerColumn(Name = "index_name", Flags = "COLUMN_INDEX|WITH_POSITION", Type = GroongaLoggerAddIn.DefaultUserTableName, Source = "name")]
 		public Object IndexName { get; set; }
 
-		[GroongaLoggerColumn(Name = "index_location", Flags = "COLUMN_INDEX|WITH_POSITION", Type = GroongaLoggerAddIn.DefautlUserTableName, Source = "location")]
+		[GroongaLoggerColumn(Name = "index_location", Flags = "COLUMN_INDEX|WITH_POSITION", Type = GroongaLoggerAddIn.DefaultUserTableName, Source = "location")]
 		public Object IndexLocation { get; set; }
 
-		[GroongaLoggerColumn(Name = "index_description", Flags = "COLUMN_INDEX|WITH_POSITION", Type = GroongaLoggerAddIn.DefautlUserTableName, Source = "description")]
+		[GroongaLoggerColumn(Name = "index_description", Flags = "COLUMN_INDEX|WITH_POSITION", Type = GroongaLoggerAddIn.DefaultUserTableName, Source = "description")]
 		public Object IndexDescription { get; set; }
 
-		[GroongaLoggerColumn(Name = "index_text", Flags = "COLUMN_INDEX|WITH_POSITION", Type = GroongaLoggerAddIn.DefautlStatusTableName, Source = "text")]
+		[GroongaLoggerColumn(Name = "index_text", Flags = "COLUMN_INDEX|WITH_POSITION", Type = GroongaLoggerAddIn.DefaultStatusTableName, Source = "text")]
 		public Object IndexText { get; set; }
 	}
 }
