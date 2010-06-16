@@ -9,7 +9,7 @@
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger</RootNamespace>
-    <AssemblyName>Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger.dll</AssemblyName>
+    <AssemblyName>Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger</AssemblyName>
     <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile />
