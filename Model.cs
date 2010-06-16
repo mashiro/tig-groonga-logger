@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Runtime.Serialization;
+using Misuzilla.Applications.TwitterIrcGateway;
 
 namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 {
@@ -39,17 +40,36 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 
 		[DataMember(Name = "protected")]
 		[GroongaLoggerColumn(Name = "protected", Flags = "COLUMN_SCALAR", Type = "Bool")]
-		public Boolean Protected { get; set; }
+		public Int32 _protected { get; set; }
+		[IgnoreDataMember]
+		public Boolean Protected { get { return _protected != 0; } set { _protected = value ? 1 : 0; } }
+
+		public static explicit operator GroongaLoggerUser(User user)
+		{
+			return new GroongaLoggerUser()
+			{
+				Id = user.Id.ToString(),
+				Name = user.Name,
+				ScreenName = user.ScreenName,
+				Location = user.Location,
+				Description = user.Description,
+				ProfileImageUrl = user.ProfileImageUrl,
+				Url = user.Url,
+				Protected = user.Protected,
+			};
+		}
 	}
 
 	[DataContract]
 	[GroongaLoggerTable(Name = GroongaLoggerAddIn.DefaultStatusTableName, Flags = "TABLE_HASH_KEY", KeyType = "ShortText")]
 	public class GroongaLoggerStatus
 	{
+		[DataMember(Name = "_key")]
+		public String Id { get; set; }
+
 		[DataMember(Name = "created_at")]
 		[GroongaLoggerColumn(Name = "created_at", Flags = "COLUMN_SCALAR", Type = "Time")]
 		public Double _createdAt;
-
 		[IgnoreDataMember]
 		public DateTime CreatedAt
 		{
@@ -67,11 +87,15 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 
 		[DataMember(Name = "truncated")]
 		[GroongaLoggerColumn(Name = "truncated", Flags = "COLUMN_SCALAR", Type = "Bool")]
-		public Boolean Truncated { get; set; }
+		public Int32 _truncated { get; set; }
+		[IgnoreDataMember]
+		public Boolean Truncated { get { return _truncated != 0; } set { _truncated = value ? 1 : 0; } }
 
 		[DataMember(Name = "favorited")]
 		[GroongaLoggerColumn(Name = "favorited", Flags = "COLUMN_SCALAR", Type = "Bool")]
-		public Boolean Favorited { get; set; }
+		public Int32 _favorited { get; set; }
+		[IgnoreDataMember]
+		public Boolean Favorited { get { return _favorited != 0; } set { _favorited = value ? 1 : 0; } }
 
 		[DataMember(Name = "in_reply_to_status_id")]
 		[GroongaLoggerColumn(Name = "in_reply_to_status_id", Flags = "COLUMN_SCALAR", Type = "ShortText")]
@@ -88,6 +112,23 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		[DataMember(Name = "user")]
 		[GroongaLoggerColumn(Name = "user", Flags = "COLUMN_SCALAR", Type = GroongaLoggerAddIn.DefaultUserTableName)]
 		public String User { get; set; }
+
+		public static explicit operator GroongaLoggerStatus(Status status)
+		{
+			return new GroongaLoggerStatus()
+			{
+				Id = status.Id.ToString(),
+				CreatedAt = status.CreatedAt,
+				Text = status.Text,
+				Source = status.Source,
+				Truncated = status.Truncated,
+				Favorited = String.IsNullOrEmpty(status.Favorited) ? false : Boolean.Parse(status.Favorited),
+				InReplyToStatusId = status.InReplyToStatusId,
+				InReplyToUserId = status.InReplyToUserId,
+				RetweetedStatus = status.RetweetedStatus != null ? status.RetweetedStatus.Id.ToString() : null,
+				User = status.User != null ? status.User.Id.ToString() : null,
+			};
+		}
 	}
 
 	[GroongaLoggerTable(Name = GroongaLoggerAddIn.DefaultTermTableName, Flags = "TABLE_PAT_KEY|KEY_NORMALIZE", KeyType = "ShortText", DefaultTokenizer = "TokenBigram")]
