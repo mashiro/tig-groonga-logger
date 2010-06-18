@@ -7,6 +7,8 @@ using System.Xml.Linq;
 using System.Runtime.Serialization;
 using System.Reflection;
 using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
 using Misuzilla.Net.Irc;
 using Misuzilla.Applications.TwitterIrcGateway;
 using Misuzilla.Applications.TwitterIrcGateway.AddIns;
@@ -66,6 +68,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 
 	public class GroongaLoggerAddIn : AddInBase
 	{
+		// テーブル名はとりあえずこれ+ユーザIDで固定
 		public const String DefaultUserTableName = "TwitterUser";
 		public const String DefaultStatusTableName = "TwitterStatus";
 		public const String DefaultTermTableName = "TwitterTerm";
@@ -100,7 +103,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 
 				// 設定を読み込む
 				Config = CurrentSession.AddInManager.GetConfig<GroongaLoggerConfigration>();
-				Setup(Config.Enabled);
+				Setup(Config.Enabled);				
 			};
 		}
 
@@ -187,6 +190,9 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 			}
 		}
 
+		/// <summary>
+		/// コンテキストを作成し、指定したアクションを実行します。
+		/// </summary>
 		public void CreateContext(Action<GroongaContext> action)
 		{
 			using (GroongaContext context = new GroongaContext())
@@ -204,7 +210,9 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 			try
 			{
 				// テーブルを初期化
+#if !DEBUG
 				InitializeTables();
+#endif
 
 				while (true)
 				{
@@ -256,7 +264,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 				var statusesJson = String.Join(",", statusList
 					.Select(s => JsonUtility.Serialize((GroongaLoggerStatus)s))
 					.ToArray());
-
+#if !DEBUG
 				CreateContext(context =>
 				{
 					Execute(context, "load --table {0}", ToUniqueTableName(DefaultUserTableName));
@@ -264,6 +272,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 					Execute(context, "load --table {0}", ToUniqueTableName(DefaultStatusTableName));
 					Execute(context, "[" + statusesJson + "]");
 				});
+#endif
 			}
 		}
 		#endregion
@@ -277,7 +286,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		private String Execute(GroongaContext context, String query)
 		{
 			context.Send(query);
-			return context.Recv();
+			return context.Receive();
 		}
 
 		/// <summary>

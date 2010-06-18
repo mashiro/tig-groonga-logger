@@ -25,5 +25,40 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 			DateTime dateTime = _originDateTime.AddSeconds(unixTime);
 			return dateTime.ToLocalTime();
 		}
+
+		public static String ToString<T>(T value) where T : class
+		{
+			return value != null ? value.ToString() : String.Empty;
+		}
+
+		public static String ToString<T, TResult>(T value, Func<T, TResult> selector) where T : class
+		{
+			return value != null ? selector(value).ToString() : String.Empty;
+		}
+
+
+		public static T ValueOrDefault<T>(T value)
+			where T : class
+		{
+			return value != null ? value : default(T);
+		}
+
+		public static T ValueOrDefault<T>(T value, T defaultValue)
+			where T : class
+		{
+			return value != null ? value : defaultValue;
+		}
+
+		public static TResult ValueOrDefault<T, TResult>(T value, Func<T, TResult> selector)
+			where T : class
+		{
+			return value != null ? selector(value) : default(TResult);
+		}
+
+		public static TResult ValueOrDefault<T, TResult>(T value, Func<T, TResult> selector, TResult defaultValue)
+			where T : class
+		{
+			return value != null ? selector(value) : defaultValue;
+		}
 	}
 }

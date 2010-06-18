@@ -39,7 +39,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		public String Url { get; set; }
 
 		[DataMember(Name = "protected")]
-		[GroongaLoggerColumn(Name = "protected", Flags = "COLUMN_SCALAR", Type = "Bool")]
+		[GroongaLoggerColumn(Name = "protected", Flags = "COLUMN_SCALAR", Type = "Int32")]
 		public Int32 _protected { get; set; }
 		[IgnoreDataMember]
 		public Boolean Protected { get { return _protected != 0; } set { _protected = value ? 1 : 0; } }
@@ -49,12 +49,12 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 			return new GroongaLoggerUser()
 			{
 				Id = user.Id.ToString(),
-				Name = user.Name,
-				ScreenName = user.ScreenName,
-				Location = user.Location,
-				Description = user.Description,
-				ProfileImageUrl = user.ProfileImageUrl,
-				Url = user.Url,
+				Name = GroongaLoggerUtility.ValueOrDefault(user.Name, String.Empty),
+				ScreenName = GroongaLoggerUtility.ValueOrDefault(user.ScreenName, String.Empty),
+				Location = GroongaLoggerUtility.ValueOrDefault(user.Location, String.Empty),
+				Description = GroongaLoggerUtility.ValueOrDefault(user.Description, String.Empty),
+				ProfileImageUrl = GroongaLoggerUtility.ValueOrDefault(user.ProfileImageUrl, String.Empty),
+				Url = GroongaLoggerUtility.ValueOrDefault(user.Url, String.Empty),
 				Protected = user.Protected,
 			};
 		}
@@ -86,13 +86,13 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		public String Source { get; set; }
 
 		[DataMember(Name = "truncated")]
-		[GroongaLoggerColumn(Name = "truncated", Flags = "COLUMN_SCALAR", Type = "Bool")]
+		[GroongaLoggerColumn(Name = "truncated", Flags = "COLUMN_SCALAR", Type = "Int32")]
 		public Int32 _truncated { get; set; }
 		[IgnoreDataMember]
 		public Boolean Truncated { get { return _truncated != 0; } set { _truncated = value ? 1 : 0; } }
 
 		[DataMember(Name = "favorited")]
-		[GroongaLoggerColumn(Name = "favorited", Flags = "COLUMN_SCALAR", Type = "Bool")]
+		[GroongaLoggerColumn(Name = "favorited", Flags = "COLUMN_SCALAR", Type = "Int32")]
 		public Int32 _favorited { get; set; }
 		[IgnoreDataMember]
 		public Boolean Favorited { get { return _favorited != 0; } set { _favorited = value ? 1 : 0; } }
@@ -119,14 +119,14 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 			{
 				Id = status.Id.ToString(),
 				CreatedAt = status.CreatedAt,
-				Text = status.Text,
-				Source = status.Source,
+				Text = GroongaLoggerUtility.ValueOrDefault(status.Text, String.Empty),
+				Source = GroongaLoggerUtility.ValueOrDefault(status.Source, String.Empty),
 				Truncated = status.Truncated,
-				Favorited = String.IsNullOrEmpty(status.Favorited) ? false : Boolean.Parse(status.Favorited),
-				InReplyToStatusId = status.InReplyToStatusId,
-				InReplyToUserId = status.InReplyToUserId,
-				RetweetedStatus = status.RetweetedStatus != null ? status.RetweetedStatus.Id.ToString() : null,
-				User = status.User != null ? status.User.Id.ToString() : null,
+				Favorited = GroongaLoggerUtility.ValueOrDefault(status.Favorited, fav => Boolean.Parse(fav), false),
+				InReplyToStatusId = GroongaLoggerUtility.ValueOrDefault(status.InReplyToStatusId, String.Empty),
+				InReplyToUserId = GroongaLoggerUtility.ValueOrDefault(status.InReplyToUserId, String.Empty),
+				RetweetedStatus = GroongaLoggerUtility.ValueOrDefault(status.RetweetedStatus, s => s.Id.ToString(), String.Empty),
+				User = GroongaLoggerUtility.ValueOrDefault(status.User, u => u.Id.ToString(), String.Empty),
 			};
 		}
 	}
