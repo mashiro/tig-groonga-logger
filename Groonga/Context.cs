@@ -56,7 +56,7 @@ namespace Spica.Data.Groonga
 		{
 			GroongaResultCode result = GroongaApi.grn_ctx_init(out _context, flags);
 			if (result != GroongaResultCode.Success)
-				throw new GroongaException(result, "failed: grn_ctx_init");
+				throw new GroongaException(result, "grn_ctx_init() faield");
 		}
 
 		public void Dispose()
@@ -72,7 +72,7 @@ namespace Spica.Data.Groonga
 		{
 			GroongaResultCode result = GroongaApi.grn_ctx_connect(ref _context, host, port, 0);
 			if (result != GroongaResultCode.Success)
-				throw new GroongaException(result, "failed: grn_ctx_connect");
+				throw new GroongaException(result, "grn_ctx_connect() faield");
 		}
 
 		public void Send(String str)
@@ -85,10 +85,10 @@ namespace Spica.Data.Groonga
 			UInt32 length = (UInt32)Encoding.UTF8.GetByteCount(str);
 			GroongaApi.grn_ctx_send(ref _context, str, length, flags);
 			if (_context.rc != GroongaResultCode.Success)
-				throw new GroongaException(_context.rc, "failed: grn_ctx_send");
+				throw new GroongaException(_context.rc, "grn_ctx_send() faield");
 		}
 
-		public String Recv()
+		public String Receive()
 		{
 			StringBuilder sb = new StringBuilder();
 			IntPtr str;
@@ -98,7 +98,7 @@ namespace Spica.Data.Groonga
 			do {
 				GroongaApi.grn_ctx_recv(ref _context, out str, out str_len, out flags);
 				if (_context.rc != GroongaResultCode.Success)
-					throw new GroongaException(_context.rc, "failed: grn_ctx_recv");
+					throw new GroongaException(_context.rc, "grn_ctx_recv() faield");
 				sb.Append(Marshal.PtrToStringAnsi(str, (Int32)str_len));
 			} while ((flags & GroongaApi.GRN_CTX_MORE) != 0);
 
