@@ -9,20 +9,23 @@ namespace Spica.Data.Groonga
 		public const String DllName = "groonga";
 
 		public const Int32 GRN_CTX_MSGSIZE = 0x80;
-		public const Int32 GRN_CTX_FIN     = 0xff;
+		public const Int32 GRN_CTX_FIN = 0xff;
 
-		public const Int32 GRN_CTX_MORE  = (0x01<<0);
-		public const Int32 GRN_CTX_TAIL  = (0x01<<1);
-		public const Int32 GRN_CTX_HEAD  = (0x01<<2);
-		public const Int32 GRN_CTX_QUIET = (0x01<<3);
-		public const Int32 GRN_CTX_QUIT  = (0x01<<4);
+		public const Int32 GRN_CTX_MORE = (0x01 << 0);
+		public const Int32 GRN_CTX_TAIL = (0x01 << 1);
+		public const Int32 GRN_CTX_HEAD = (0x01 << 2);
+		public const Int32 GRN_CTX_QUIET = (0x01 << 3);
+		public const Int32 GRN_CTX_QUIT = (0x01 << 4);
 
 		[StructLayout(LayoutKind.Explicit, CharSet = CharSet.Ansi)]
 		public struct grn_user_data
 		{
-			[FieldOffset(0)] public Int32 int_value;
-			[FieldOffset(0)] public UInt32 id;
-			[FieldOffset(0)] public IntPtr ptr;
+			[FieldOffset(0)]
+			public Int32 int_value;
+			[FieldOffset(0)]
+			public UInt32 id;
+			[FieldOffset(0)]
+			public IntPtr ptr;
 		}
 
 		[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
@@ -70,4 +73,3 @@ namespace Spica.Data.Groonga
 		public static extern UInt32 grn_ctx_recv(ref grn_ctx ctx, out IntPtr str, out UInt32 str_len, out Int32 flags);
 	}
 }
-

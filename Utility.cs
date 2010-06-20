@@ -20,10 +20,9 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 			return timeSpan.TotalSeconds;
 		}
 
-		public static DateTime ToLocalDateTime(Double unixTime)
+		public static DateTime ToDateTime(Double unixTime)
 		{
-			DateTime dateTime = _originDateTime.AddSeconds(unixTime);
-			return dateTime.ToLocalTime();
+			return _originDateTime.AddSeconds(unixTime);
 		}
 
 		public static String ToString<T>(T value) where T : class

@@ -114,4 +114,3 @@ namespace Spica.Data.Groonga
 		BatchMode = 0x04,
 	}
 }
-

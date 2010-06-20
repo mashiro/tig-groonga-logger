@@ -73,7 +73,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		[IgnoreDataMember]
 		public DateTime CreatedAt
 		{
-			get { return GroongaLoggerUtility.ToLocalDateTime(_createdAt); }
+			get { return GroongaLoggerUtility.ToDateTime(_createdAt); }
 			set { _createdAt = GroongaLoggerUtility.ToUnixTime(value); }
 		}
 

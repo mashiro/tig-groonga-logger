@@ -50,6 +50,88 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 			AddIn.Setup(AddIn.Config.Enabled);
 			AddIn.NotifyMessage("ロギングを無効にしました。");
 		}
+
+		[Description("ユーザ名で検索を行います。")]
+		public void FindByScreenName(String screenName)
+		{
+			Catch(() =>
+			{
+				var options = new Dictionary<String, String>() {
+					{ "table", AddIn.StatusTableName },
+					{ "output_columns", "created_at,user.screen_name,text" },
+					{ "query", "user.screen_name:" + screenName },
+					{ "sortby", "-created_at" },
+					{ "limit", "20" }
+				};
+				var query = String.Format("select {0}", AddIn.ParseOptions(options));
+				var response = AddIn.Select(query);
+
+				var items = response.Data.Items
+					.SelectMany(data => data.Items)
+					.Reverse();
+
+				foreach (var item in items)
+				{
+					var created_at = (DateTime)item["created_at"];
+					var screen_name = (String)item["user.screen_name"];
+					var text = (String)item["text"];
+					AddIn.NotifyMessage(screen_name, String.Format("{0} {1}", created_at.ToString("yyyy/MM/dd HH:mm:ss"), text));
+				}
+			});
+		}
+
+		[Description("テキストで検索を行います。")]
+		public void FindByText(String findText)
+		{
+			Catch(() =>
+			{
+				var options = new Dictionary<String, String>() {
+					{ "table", AddIn.StatusTableName },
+					{ "output_columns", "created_at,user.screen_name,text" },
+					{ "query", "text:@" + findText },
+					{ "sortby", "-created_at" },
+					{ "limit", "20" }
+				};
+				var query = String.Format("select {0}", AddIn.ParseOptions(options));
+				var response = AddIn.Select(query);
+
+				var items = response.Data.Items
+					.SelectMany(data => data.Items)
+					.Reverse();
+
+				foreach (var item in items)
+				{
+					var created_at = (DateTime)item["created_at"];
+					var screen_name = (String)item["user.screen_name"];
+					var text = (String)item["text"];
+					AddIn.NotifyMessage(screen_name, String.Format("{0} {1}", created_at.ToString("yyyy/MM/dd HH:mm:ss"), text));
+				}
+			});
+		}
+
+		private void Catch(Action action)
+		{
+			try
+			{
+				action();
+			}
+			catch (Exception ex)
+			{
+				AddIn.NotifyMessage(ex.Message);
+				AddIn.NotifyMessage(ex.StackTrace);
+			}
+		}
+
+		private String Replace(String format, Dictionary<String, Object> items)
+		{
+			foreach (var item in items)
+			{
+				var placeholder = "${" + item.Key + "}";
+				format.Replace(placeholder, item.Value.ToString());
+			}
+
+			return format;
+		}
 	}
 
 	public class GroongaLoggerConfigration : IConfiguration
@@ -74,6 +156,9 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		public const String DefaultTermTableName = "TwitterTerm";
 
 		public GroongaLoggerConfigration Config { get; set; }
+		public String UserTableName { get; set; }
+		public String StatusTableName { get; set; }
+		public String TermTableName { get; set; }
 
 		private Thread _thread = null;
 		private EventWaitHandle _threadEvent = null;
@@ -81,10 +166,6 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		private Object _setupSync = new Object();
 		private Queue<Status> _threadQueue = new Queue<Status>();
 		private TypableMapCommandProcessor _typableMapCommands = null;
-
-		public GroongaLoggerAddIn()
-		{
-		}
 
 		public override void Initialize()
 		{
@@ -100,6 +181,11 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 				var typableMapSupport = CurrentSession.AddInManager.GetAddIn<TypableMapSupport>();
 				if (typableMapSupport != null)
 					_typableMapCommands = typableMapSupport.TypableMapCommands;
+
+				// ユニークなテーブル名を設定
+				UserTableName = ToUniqueTableName(DefaultUserTableName);
+				StatusTableName = ToUniqueTableName(DefaultStatusTableName);
+				TermTableName = ToUniqueTableName(DefaultTermTableName);
 
 				// 設定を読み込む
 				Config = CurrentSession.AddInManager.GetConfig<GroongaLoggerConfigration>();
@@ -129,11 +215,19 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		/// <summary>
 		/// コンソールにメッセージを送信する。
 		/// </summary>
-		/// <param name="message">送信するメッセージ</param>
 		public void NotifyMessage(String message)
 		{
 			var console = CurrentSession.AddInManager.GetAddIn<ConsoleAddIn>();
 			console.NotifyMessage(message);
+		}
+
+		/// <summary>
+		/// コンソールにメッセージを送信する。
+		/// </summary>
+		public void NotifyMessage(String senderNick, String message)
+		{
+			var console = CurrentSession.AddInManager.GetAddIn<ConsoleAddIn>();
+			console.NotifyMessage(senderNick, message);
 		}
 
 		#region Logging
@@ -195,10 +289,22 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		/// </summary>
 		public void CreateContext(Action<GroongaContext> action)
 		{
+			CreateContext(context =>
+			{
+				action(context);
+				return 0;
+			});
+		}
+
+		/// <summary>
+		/// コンテキストを作成し、指定したファンクションを実行します。
+		/// </summary>
+		public TResult CreateContext<TResult>(Func<GroongaContext, TResult> func)
+		{
 			using (GroongaContext context = new GroongaContext())
 			{
 				context.Connect(Config.Host, Config.Port);
-				action(context);
+				return func(context);
 			}
 		}
 
@@ -210,9 +316,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 			try
 			{
 				// テーブルを初期化
-#if !DEBUG
 				InitializeTables();
-#endif
 
 				while (true)
 				{
@@ -264,15 +368,14 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 				var statusesJson = String.Join(",", statusList
 					.Select(s => JsonUtility.Serialize((GroongaLoggerStatus)s))
 					.ToArray());
-#if !DEBUG
+
 				CreateContext(context =>
 				{
-					Execute(context, "load --table {0}", ToUniqueTableName(DefaultUserTableName));
+					Execute(context, "load --table {0}", UserTableName);
 					Execute(context, "[" + usersJson + "]");
-					Execute(context, "load --table {0}", ToUniqueTableName(DefaultStatusTableName));
+					Execute(context, "load --table {0}", StatusTableName);
 					Execute(context, "[" + statusesJson + "]");
 				});
-#endif
 			}
 		}
 		#endregion
@@ -281,9 +384,10 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		/// <summary>
 		/// Groonga のクエリを実行します。
 		/// </summary>
+		/// <param name="context">コンテキスト</param>
 		/// <param name="str">クエリ</param>
 		/// <returns>結果</returns>
-		private String Execute(GroongaContext context, String query)
+		public String Execute(GroongaContext context, String query)
 		{
 			context.Send(query);
 			return context.Receive();
@@ -292,12 +396,34 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		/// <summary>
 		/// Groonga のクエリを実行します。
 		/// </summary>
+		/// <param name="context">コンテキスト</param>
 		/// <param name="format">クエリのフォーマット</param>
 		/// <param name="args">可変長引数</param>
 		/// <returns>結果</returns>
-		private String Execute(GroongaContext context, String format, params Object[] args)
+		public String Execute(GroongaContext context, String format, params Object[] args)
 		{
 			return Execute(context, String.Format(format, args));
+		}
+
+		/// <summary>
+		/// Select クエリを実行し、結果を返します。
+		/// </summary>
+		/// <param name="query">クエリ</param>
+		/// <returns>レスポンス</returns>
+		public GroongaResponse<GroongaResponseDataList> Select(String query)
+		{
+			return CreateContext(context =>
+			{
+				var result = Execute(context, query);
+				if (!String.IsNullOrEmpty(result))
+				{
+					var response = new GroongaResponse<GroongaResponseDataList>();
+					response.Parse(JsonUtility.Parse(result));
+					return response;
+				}
+
+				return null;
+			});
 		}
 		#endregion
 
@@ -465,7 +591,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		/// <summary>
 		/// 辞書を Groonga のオプションに変換します。
 		/// </summary>
-		private String ParseOptions(Dictionary<String, String> options)
+		public String ParseOptions(Dictionary<String, String> options)
 		{
 			if (options == null)
 				return String.Empty;

@@ -21,7 +21,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		{
 			var elements = e.Elements();
 			StatusCode = (Int32)elements.ElementAt(0);
-			ProcessStartTime = GroongaLoggerUtility.ToLocalDateTime((Double)elements.ElementAt(1));
+			ProcessStartTime = GroongaLoggerUtility.ToDateTime((Double)elements.ElementAt(1));
 			ProcessTime = (Double)elements.ElementAt(2);
 		}
 	}
@@ -79,7 +79,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 				case "Float":
 					return Single.Parse(value);
 				case "Time":
-					return GroongaLoggerUtility.ToLocalDateTime(Double.Parse(value));
+					return GroongaLoggerUtility.ToDateTime(Double.Parse(value));
 				case "ShortText":
 				case "Text":
 				case "LongText":
