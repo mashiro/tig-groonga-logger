@@ -6,12 +6,12 @@ using System.Xml.Linq;
 
 namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 {
-	public interface IGroongaResponse
+	public interface IGroongaLoggerResponse
 	{
 		void Parse(XElement e);
 	}
 
-	public class GroongaResponseStatus : IGroongaResponse
+	public class GroongaLoggerResponseStatus : IGroongaLoggerResponse
 	{
 		public Int32 StatusCode { get; set; }
 		public DateTime ProcessStartTime { get; set; }
@@ -26,7 +26,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		}
 	}
 
-	public class GroongaResponseData : IGroongaResponse
+	public class GroongaLoggerResponseData : IGroongaLoggerResponse
 	{
 		public Int32? SearchCount { get; set; }
 		public List<Dictionary<String, Object>> Items { get; set; }
@@ -90,31 +90,31 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		}
 	}
 
-	public class GroongaResponseDataList : IGroongaResponse
+	public class GroongaLoggerResponseDataList : IGroongaLoggerResponse
 	{
-		public List<GroongaResponseData> Items { get; set; }
+		public List<GroongaLoggerResponseData> Items { get; set; }
 
 		public void Parse(XElement e)
 		{
-			Items = new List<GroongaResponseData>();
+			Items = new List<GroongaLoggerResponseData>();
 			foreach (var dataElement in e.Elements())
 			{
-				var data = new GroongaResponseData();
+				var data = new GroongaLoggerResponseData();
 				data.Parse(dataElement);
 				Items.Add(data);
 			}
 		}
 	}
 
-	public class GroongaResponse<TData> : IGroongaResponse
-		where TData : IGroongaResponse, new()
+	public class GroongaLoggerResponse<TData> : IGroongaLoggerResponse
+		where TData : IGroongaLoggerResponse, new()
 	{
-		public GroongaResponseStatus Status { get; set; }
+		public GroongaLoggerResponseStatus Status { get; set; }
 		public TData Data { get; set; }
 
-		public GroongaResponse()
+		public GroongaLoggerResponse()
 		{
-			Status = new GroongaResponseStatus();
+			Status = new GroongaLoggerResponseStatus();
 			Data = new TData();
 		}
 

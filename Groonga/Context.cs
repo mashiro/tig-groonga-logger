@@ -30,18 +30,39 @@ namespace Spica.Data.Groonga
 
 	public class GroongaContext : IDisposable
 	{
-		private static Initializer _initializer = null;
-		private class Initializer
+		private static readonly Library _library = new Library();
+		private class Library
 		{
-			public void Init() { GroongaApi.grn_init(); }
-			public void Fin() { GroongaApi.grn_fin(); }
-			~Initializer() { Fin(); }
-		}
+			private Boolean _initialized = false;
 
-		static GroongaContext()
-		{
-			_initializer = new Initializer();
-			_initializer.Init();
+			~Library()
+			{
+				Uninitialize();
+			}
+
+			public void Initialize()
+			{
+				lock (this)
+				{
+					if (!_initialized)
+					{
+						GroongaApi.grn_init();
+						_initialized = true;
+					}
+				}
+			}
+
+			public void Uninitialize()
+			{
+				lock (this)
+				{
+					if (_initialized)
+					{
+						GroongaApi.grn_fin();
+						_initialized = false;
+					}
+				}
+			}
 		}
 
 		private GroongaApi.grn_ctx _context;
@@ -54,6 +75,10 @@ namespace Spica.Data.Groonga
 
 		public GroongaContext(GroongaContextFlags flags)
 		{
+			// ライブラリの初期化(初回のみ)
+			_library.Initialize();
+
+			// コンテキストの初期化
 			GroongaResultCode result = GroongaApi.grn_ctx_init(out _context, flags);
 			if (result != GroongaResultCode.Success)
 				throw new GroongaException(result, "grn_ctx_init() faield");

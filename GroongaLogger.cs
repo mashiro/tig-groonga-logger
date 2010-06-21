@@ -54,30 +54,25 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		[Description("ユーザ名で検索を行います。")]
 		public void FindByScreenName(String screenName)
 		{
-			Catch(() =>
+			var options = new GroongaLoggerOptions() {
+				{ "table", AddIn.StatusTableName },
+				{ "output_columns", "created_at,user.screen_name,text" },
+				{ "query", "user.screen_name:" + screenName },
+				{ "sortby", "-created_at" },
+				{ "limit", "20" }
+			};
+			var response = AddIn.Select("select", options);
+			var items = response.Data.Items
+				.SelectMany(data => data.Items)
+				.Reverse();
+
+			foreach (var item in items)
 			{
-				var options = new Dictionary<String, String>() {
-					{ "table", AddIn.StatusTableName },
-					{ "output_columns", "created_at,user.screen_name,text" },
-					{ "query", "user.screen_name:" + screenName },
-					{ "sortby", "-created_at" },
-					{ "limit", "20" }
-				};
-				var query = String.Format("select {0}", AddIn.ParseOptions(options));
-				var response = AddIn.Select(query);
-
-				var items = response.Data.Items
-					.SelectMany(data => data.Items)
-					.Reverse();
-
-				foreach (var item in items)
-				{
-					var created_at = (DateTime)item["created_at"];
-					var screen_name = (String)item["user.screen_name"];
-					var text = (String)item["text"];
-					AddIn.NotifyMessage(screen_name, String.Format("{0} {1}", created_at.ToString("yyyy/MM/dd HH:mm:ss"), text));
-				}
-			});
+				var created_at = (DateTime)item["created_at"];
+				var screen_name = (String)item["user.screen_name"];
+				var text = (String)item["text"];
+				AddIn.NotifyMessage(screen_name, String.Format("{0} {1}", created_at.ToString("yyyy/MM/dd HH:mm:ss"), text));
+			}
 		}
 
 		[Description("テキストで検索を行います。")]
@@ -85,16 +80,14 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		{
 			Catch(() =>
 			{
-				var options = new Dictionary<String, String>() {
+				var options = new GroongaLoggerOptions() {
 					{ "table", AddIn.StatusTableName },
 					{ "output_columns", "created_at,user.screen_name,text" },
 					{ "query", "text:@" + findText },
 					{ "sortby", "-created_at" },
 					{ "limit", "20" }
 				};
-				var query = String.Format("select {0}", AddIn.ParseOptions(options));
-				var response = AddIn.Select(query);
-
+				var response = AddIn.Select("select", options);
 				var items = response.Data.Items
 					.SelectMany(data => data.Items)
 					.Reverse();
@@ -165,6 +158,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		private Boolean _isThreadRunning = false;
 		private Object _setupSync = new Object();
 		private Queue<Status> _threadQueue = new Queue<Status>();
+		private GroongaLoggerSelectState _state = new GroongaLoggerSelectState();
 		private TypableMapCommandProcessor _typableMapCommands = null;
 
 		public override void Initialize()
@@ -410,15 +404,23 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		/// </summary>
 		/// <param name="query">クエリ</param>
 		/// <returns>レスポンス</returns>
-		public GroongaResponse<GroongaResponseDataList> Select(String query)
+		public GroongaLoggerResponse<GroongaLoggerResponseDataList> Select(String command, GroongaLoggerOptions options)
 		{
+			if (!options.ContainsKey("limit"))
+				options["limit"] = "10";
+
 			return CreateContext(context =>
 			{
-				var result = Execute(context, query);
+				var result = Execute(context, "{0} {1}", command, ParseOptions(options));
 				if (!String.IsNullOrEmpty(result))
 				{
-					var response = new GroongaResponse<GroongaResponseDataList>();
+					var response = new GroongaLoggerResponse<GroongaLoggerResponseDataList>();
 					response.Parse(JsonUtility.Parse(result));
+
+					Int32 limit = Int32.Parse("limit");
+					Int32 total = response.Data.Items.FirstOrDefault().SearchCount ?? 0;
+					_state.Reset(options, limit, total);
+
 					return response;
 				}
 
@@ -501,7 +503,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		/// <param name="attribute">テーブルの属性</param>
 		private void CreateTable(GroongaContext context, GroongaLoggerTableAttribute attribute)
 		{
-			var options = new Dictionary<String, String>() {
+			var options = new GroongaLoggerOptions() {
 				{ "name", attribute.Name },
 				{ "flags", attribute.Flags },
 				{ "key_type", attribute.KeyType },
@@ -520,7 +522,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		/// <param name="attribute">カラムの属性</param>
 		private void CreateColumn(GroongaContext context, GroongaLoggerColumnAttribute attribute)
 		{
-			var options = new Dictionary<String, String>() {
+			var options = new GroongaLoggerOptions() {
 				{ "table", attribute.Table },
 				{ "name", attribute.Name },
 				{ "flags", attribute.Flags },
@@ -551,12 +553,14 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		/// <returns>ユーザー固有のテーブル名</returns>
 		public String ToUniqueTableName(String tableName)
 		{
-			if (String.Compare(tableName, DefaultUserTableName) == 0 ||
-				String.Compare(tableName, DefaultStatusTableName) == 0 ||
-				String.Compare(tableName, DefaultTermTableName) == 0)
-			{
+			var names = new String[] {
+				DefaultUserTableName,
+				DefaultStatusTableName,
+				DefaultTermTableName
+			};
+
+			if (names.Any(name => String.Compare(tableName, name) == 0))
 				return String.Format("{0}_{1}", tableName, CurrentSession.TwitterUser.Id);
-			}
 
 			return tableName;
 		}
@@ -568,7 +572,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		private IEnumerable<String> GetTableNames(GroongaContext context)
 		{
 			var json = Execute(context, "table_list");
-			var response = new GroongaResponse<GroongaResponseData>();
+			var response = new GroongaLoggerResponse<GroongaLoggerResponseData>();
 			response.Parse(JsonUtility.Parse(json));
 			foreach (var item in response.Data.Items)
 				yield return (String)item["name"];
@@ -582,7 +586,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		private IEnumerable<String> GetColumnNames(GroongaContext context, String tableName)
 		{
 			var json = Execute(context, "table_list --table {0}", tableName);
-			var response = new GroongaResponse<GroongaResponseData>();
+			var response = new GroongaLoggerResponse<GroongaLoggerResponseData>();
 			response.Parse(JsonUtility.Parse(json));
 			foreach (var item in response.Data.Items)
 				yield return (String)item["name"];
@@ -591,14 +595,14 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		/// <summary>
 		/// 辞書を Groonga のオプションに変換します。
 		/// </summary>
-		public String ParseOptions(Dictionary<String, String> options)
+		public String ParseOptions(GroongaLoggerOptions options)
 		{
 			if (options == null)
 				return String.Empty;
 
 			return String.Join(" ", options
 				.Where(d => !String.IsNullOrEmpty(d.Key) && !String.IsNullOrEmpty(d.Value))
-				.Select(d => String.Format("--{0} {1}", d.Key, d.Value))
+				.Select(d => String.Format("--{0} {1}", d.Key.ToLowerInvariant(), d.Value))
 				.ToArray());
 		}
 		#endregion
