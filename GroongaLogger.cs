@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Xml.Linq;
 using System.Runtime.Serialization;
@@ -36,73 +37,92 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		[Description("ロギングを有効にします")]
 		public void Enable()
 		{
-			AddIn.Config.Enabled = true;
-			AddIn.SaveConfig();
-			AddIn.Setup(AddIn.Config.Enabled);
-			AddIn.NotifyMessage("ロギングを有効にしました。");
+			ErrorHandler(() =>
+			{
+				AddIn.Config.Enabled = true;
+				AddIn.SaveConfig();
+				AddIn.Setup(AddIn.Config.Enabled);
+				AddIn.NotifyMessage("ロギングを有効にしました。");
+			});
 		}
 
 		[Description("ロギングを無効にします")]
 		public void Disable()
 		{
-			AddIn.Config.Enabled = false;
-			AddIn.SaveConfig();
-			AddIn.Setup(AddIn.Config.Enabled);
-			AddIn.NotifyMessage("ロギングを無効にしました。");
+			ErrorHandler(() =>
+			{
+				AddIn.Config.Enabled = false;
+				AddIn.SaveConfig();
+				AddIn.Setup(AddIn.Config.Enabled);
+				AddIn.NotifyMessage("ロギングを無効にしました。");
+			});
 		}
 
 		[Description("ユーザ名で検索を行います。")]
 		public void FindByScreenName(String screenName)
 		{
-			var options = new GroongaLoggerOptions() {
-				{ "table", AddIn.StatusTableName },
-				{ "output_columns", "created_at,user.screen_name,text" },
-				{ "query", "user.screen_name:" + screenName },
-				{ "sortby", "-created_at" },
-				{ "limit", "20" }
-			};
-			var response = AddIn.Select("select", options);
-			var items = response.Data.Items
-				.SelectMany(data => data.Items)
-				.Reverse();
-
-			foreach (var item in items)
+			ErrorHandler(() =>
 			{
-				var created_at = (DateTime)item["created_at"];
-				var screen_name = (String)item["user.screen_name"];
-				var text = (String)item["text"];
-				AddIn.NotifyMessage(screen_name, String.Format("{0} {1}", created_at.ToString("yyyy/MM/dd HH:mm:ss"), text));
-			}
+				if (!String.IsNullOrEmpty(screenName))
+				{
+					var options = new GroongaLoggerOptions() {
+						{ "table", AddIn.StatusTableName },
+						{ "output_columns", "created_at,user.screen_name,text" },
+						{ "query", "user.screen_name:" + screenName },
+						{ "sortby", "-created_at" },
+						{ "limit", "20" }
+					};
+					var response = AddIn.Select("select", options);
+					var items = response.Data.Items
+						.SelectMany(data => data.Items)
+						.Reverse();
+
+					foreach (var item in items)
+					{
+						var created_at = (DateTime)item["created_at"];
+						var screen_name = (String)item["user.screen_name"];
+						var text = (String)item["text"];
+						AddIn.NotifyMessage(screen_name, String.Format("{0} {1}", created_at.ToString("yyyy/MM/dd HH:mm:ss"), text));
+					}
+				}
+			});
 		}
 
 		[Description("テキストで検索を行います。")]
 		public void FindByText(String findText)
 		{
-			Catch(() =>
+			ErrorHandler(() =>
 			{
-				var options = new GroongaLoggerOptions() {
-					{ "table", AddIn.StatusTableName },
-					{ "output_columns", "created_at,user.screen_name,text" },
-					{ "query", "text:@" + findText },
-					{ "sortby", "-created_at" },
-					{ "limit", "20" }
-				};
-				var response = AddIn.Select("select", options);
-				var items = response.Data.Items
-					.SelectMany(data => data.Items)
-					.Reverse();
-
-				foreach (var item in items)
+				if (!String.IsNullOrEmpty(findText))
 				{
-					var created_at = (DateTime)item["created_at"];
-					var screen_name = (String)item["user.screen_name"];
-					var text = (String)item["text"];
-					AddIn.NotifyMessage(screen_name, String.Format("{0} {1}", created_at.ToString("yyyy/MM/dd HH:mm:ss"), text));
+					// 条件式が指定されてなければデフォルトで全文検索
+					if (!Regex.IsMatch(findText, @"^(!|<=?|>=?|@|\^|\$)"))
+						findText = "@" + findText;
+
+					var options = new GroongaLoggerOptions() {
+						{ "table", AddIn.StatusTableName },
+						{ "output_columns", "created_at,user.screen_name,text" },
+						{ "query", "text:" + findText },
+						{ "sortby", "-created_at" },
+						{ "limit", "20" }
+					};
+					var response = AddIn.Select("select", options);
+					var items = response.Data.Items
+						.SelectMany(data => data.Items)
+						.Reverse();
+
+					foreach (var item in items)
+					{
+						var created_at = (DateTime)item["created_at"];
+						var screen_name = (String)item["user.screen_name"];
+						var text = (String)item["text"];
+						AddIn.NotifyMessage(screen_name, String.Format("{0} {1}", created_at.ToString("yyyy/MM/dd HH:mm:ss"), text));
+					}
 				}
 			});
 		}
 
-		private void Catch(Action action)
+		private void ErrorHandler(Action action)
 		{
 			try
 			{
@@ -110,8 +130,12 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 			}
 			catch (Exception ex)
 			{
+#if DEBUG
 				AddIn.NotifyMessage(ex.Message);
 				AddIn.NotifyMessage(ex.StackTrace);
+#else
+				throw ex;
+#endif
 			}
 		}
 
@@ -144,9 +168,9 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 	public class GroongaLoggerAddIn : AddInBase
 	{
 		// テーブル名はとりあえずこれ+ユーザIDで固定
-		public const String DefaultUserTableName = "TwitterUser";
-		public const String DefaultStatusTableName = "TwitterStatus";
-		public const String DefaultTermTableName = "TwitterTerm";
+		public const String DefaultUserTableName = "twitter_users";
+		public const String DefaultStatusTableName = "twitter_statuses";
+		public const String DefaultTermTableName = "twitter_terms";
 
 		public GroongaLoggerConfigration Config { get; set; }
 		public String UserTableName { get; set; }
@@ -417,7 +441,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 					var response = new GroongaLoggerResponse<GroongaLoggerResponseDataList>();
 					response.Parse(JsonUtility.Parse(result));
 
-					Int32 limit = Int32.Parse("limit");
+					Int32 limit = Int32.Parse(options["limit"]);
 					Int32 total = response.Data.Items.FirstOrDefault().SearchCount ?? 0;
 					_state.Reset(options, limit, total);
 
@@ -463,13 +487,14 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 					// ユーザー固有のテーブル名に変換
 					attribute.Name = ToUniqueTableName(attribute.Name);
 
+					// テーブルの作成
 					if (!tableNames.Contains(attribute.Name))
-					{
 						CreateTable(context, attribute);
-						CreateColumns(context, attribute.Name, table
-							.GetMembers(BindingFlags.CreateInstance | BindingFlags.Public | BindingFlags.Instance)
-							.Where(mi => mi.MemberType == MemberTypes.Field || mi.MemberType == MemberTypes.Property));
-					}
+
+					// カラムの作成
+					CreateColumns(context, attribute.Name, table
+						.GetMembers(BindingFlags.CreateInstance | BindingFlags.Public | BindingFlags.Instance)
+						.Where(mi => mi.MemberType == MemberTypes.Field || mi.MemberType == MemberTypes.Property));
 				}
 			}
 		}
