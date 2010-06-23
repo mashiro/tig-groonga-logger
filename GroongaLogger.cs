@@ -331,31 +331,45 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		/// </summary>
 		private void LoggingThread()
 		{
+			Boolean tableInitialized = false;
+
 			try
 			{
-				// テーブルを初期化
-				InitializeTables();
-
-				while (true)
+				Retry(10, (reset) =>
 				{
-					// キューから取れるだけ取ってくる
-					var statuses = new List<Status>();
-					lock (_threadQueue)
+					if (!tableInitialized)
 					{
-						statuses.AddRange(_threadQueue);
-						_threadQueue.Clear();
+						// テーブルを初期化
+						InitializeTables();
+						tableInitialized = true;
 					}
 
-					// データベースに格納
-					StoreStatuses(statuses);
-
-					// 待機
-					if (_threadEvent.WaitOne(1000 * 10))
+					while (true)
 					{
-						// シグナルを受け取ったらスレッドを終了
-						break;
+						// キューから取れるだけ取ってくる
+						var statuses = new List<Status>();
+						lock (_threadQueue)
+						{
+							statuses.AddRange(_threadQueue);
+							_threadQueue.Clear();
+						}
+
+						// データベースに格納
+						StoreStatuses(statuses);
+
+						// 待機
+						if (_threadEvent.WaitOne(10 * 1000))
+							break;
+
+						// リトライ回数をリセット
+						reset();
 					}
-				}
+				}, (ex) =>
+				{
+					NotifyMessage(ex.Message);
+					NotifyMessage(ex.StackTrace);
+					return _threadEvent.WaitOne(10 * 1000);
+				});
 			}
 			catch (Exception ex)
 			{
@@ -365,6 +379,35 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 			finally
 			{
 				_isThreadRunning = false;
+			}
+		}
+
+		/// <summary>
+		/// 指定された回数処理をリトライさせます。
+		/// </summary>
+		/// <param name="count">リトライさせる回数</param>
+		/// <param name="action">リトライさせる処理</param>
+		/// <param name="error">エラー時の処理</param>
+		private void Retry(Int32 count, Action<Action> action, Func<Exception, Boolean> error)
+		{
+			Int32 retryCount = count;
+			Action reset = () => { retryCount = count; };
+
+			while (true)
+			{
+				try
+				{
+					action(reset);
+					break;
+				}
+				catch (Exception ex)
+				{
+					if (--retryCount <= 0)
+						throw ex;
+
+					if (error(ex))
+						break;
+				}
 			}
 		}
 
