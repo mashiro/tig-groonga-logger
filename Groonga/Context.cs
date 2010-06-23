@@ -42,25 +42,19 @@ namespace Spica.Data.Groonga
 
 			public void Initialize()
 			{
-				lock (this)
+				if (!_initialized)
 				{
-					if (!_initialized)
-					{
-						GroongaApi.grn_init();
-						_initialized = true;
-					}
+					GroongaApi.grn_init();
+					_initialized = true;
 				}
 			}
 
 			public void Uninitialize()
 			{
-				lock (this)
+				if (_initialized)
 				{
-					if (_initialized)
-					{
-						GroongaApi.grn_fin();
-						_initialized = false;
-					}
+					GroongaApi.grn_fin();
+					_initialized = false;
 				}
 			}
 		}
