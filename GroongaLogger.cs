@@ -72,7 +72,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 						{ "sortby", "-created_at" },
 						{ "limit", "20" }
 					};
-					var response = AddIn.Select("select", options);
+					var response = AddIn.Select(options);
 					var items = response.Data.Items
 						.SelectMany(data => data.Items)
 						.Reverse();
@@ -106,7 +106,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 						{ "sortby", "-created_at" },
 						{ "limit", "20" }
 					};
-					var response = AddIn.Select("select", options);
+					var response = AddIn.Select(options);
 					var items = response.Data.Items
 						.SelectMany(data => data.Items)
 						.Reverse();
@@ -177,6 +177,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		public String StatusTableName { get; set; }
 		public String TermTableName { get; set; }
 
+		private GroongaContext _context = null;
 		private Thread _thread = null;
 		private EventWaitHandle _threadEvent = null;
 		private Boolean _isThreadRunning = false;
@@ -331,39 +332,36 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		/// </summary>
 		private void LoggingThread()
 		{
-			Boolean tableInitialized = false;
-
 			try
 			{
-				Retry(10, (reset) =>
+				Retry(10, (success) =>
 				{
-					if (!tableInitialized)
+					// コンテキストを作成
+					CreateContext(context =>
 					{
 						// テーブルを初期化
-						InitializeTables();
-						tableInitialized = true;
-					}
+						InitializeTables(context);
 
-					while (true)
-					{
-						// キューから取れるだけ取ってくる
-						var statuses = new List<Status>();
-						lock (_threadQueue)
+						while (true)
 						{
-							statuses.AddRange(_threadQueue);
-							_threadQueue.Clear();
+							// キューから取れるだけ取ってくる
+							var statuses = new List<Status>();
+							lock (_threadQueue)
+							{
+								statuses.AddRange(_threadQueue);
+								_threadQueue.Clear();
+							}
+
+							// データベースに格納
+							StoreStatuses(context, statuses);
+
+							// 待機
+							if (_threadEvent.WaitOne(10 * 1000))
+								break;
+
+							success();
 						}
-
-						// データベースに格納
-						StoreStatuses(statuses);
-
-						// 待機
-						if (_threadEvent.WaitOne(10 * 1000))
-							break;
-
-						// リトライ回数をリセット
-						reset();
-					}
+					});
 				}, (ex) =>
 				{
 					NotifyMessage(ex.Message);
@@ -391,13 +389,13 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		private void Retry(Int32 count, Action<Action> action, Func<Exception, Boolean> error)
 		{
 			Int32 retryCount = count;
-			Action reset = () => { retryCount = count; };
+			Action success = () => { retryCount = count; };
 
 			while (true)
 			{
 				try
 				{
-					action(reset);
+					action(success);
 					break;
 				}
 				catch (Exception ex)
@@ -415,30 +413,29 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		/// ステータスをデータストアに格納します。
 		/// </summary>
 		/// <param name="statuses">ステータス</param>
-		private void StoreStatuses(IEnumerable<Status> statuses)
+		private void StoreStatuses(GroongaContext context, IEnumerable<Status> statuses)
 		{
 			var statusList = statuses.ToList();
 			if (statusList.Count > 0)
 			{
 				var usersJson = String.Join(",", statusList
-					.Select(s => s.User)
-					.Where(u => u != null)
-					.Select(u => JsonUtility.Serialize((GroongaLoggerUser)u))
+					.Where(s => s.User != null)
+					.Select(s => GroongaLoggerUser.FromUser(s.User))
+					.Select(u => JsonUtility.Serialize(u))
 					.ToArray());
 
 				var statusesJson = String.Join(",", statusList
-					.Select(s => JsonUtility.Serialize((GroongaLoggerStatus)s))
+					.Select(s => GroongaLoggerStatus.FromStatus(s))
+					.Select(s => JsonUtility.Serialize(s))
 					.ToArray());
 
-				CreateContext(context =>
-				{
-					Execute(context, "load --table {0}", UserTableName);
-					Execute(context, "[" + usersJson + "]");
-					Execute(context, "load --table {0}", StatusTableName);
-					Execute(context, "[" + statusesJson + "]");
-				});
+				Execute(context, "load --table {0}", UserTableName);
+				Execute(context, "[" + usersJson + "]");
+				Execute(context, "load --table {0}", StatusTableName);
+				Execute(context, "[" + statusesJson + "]");
 			}
 		}
+
 		#endregion
 
 		#region Query
@@ -471,14 +468,14 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		/// </summary>
 		/// <param name="query">クエリ</param>
 		/// <returns>レスポンス</returns>
-		public GroongaLoggerResponse<GroongaLoggerResponseDataList> Select(String command, GroongaLoggerOptions options)
+		public GroongaLoggerResponse<GroongaLoggerResponseDataList> Select(GroongaLoggerOptions options)
 		{
 			if (!options.ContainsKey("limit"))
 				options["limit"] = "10";
 
 			return CreateContext(context =>
 			{
-				var result = Execute(context, "{0} {1}", command, ParseOptions(options));
+				var result = Execute(context, "select {0}", ParseOptions(options));
 				if (!String.IsNullOrEmpty(result))
 				{
 					var response = new GroongaLoggerResponse<GroongaLoggerResponseDataList>();
@@ -500,18 +497,15 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		/// <summary>
 		/// テーブルを初期化します。
 		/// </summary>
-		private void InitializeTables()
+		private void InitializeTables(GroongaContext context)
 		{
-			CreateContext(context =>
-			{
-				var tables = new Type[] {
-					typeof(GroongaLoggerUser),
-					typeof(GroongaLoggerStatus),
-					typeof(GroongaLoggerTerm)
-				};
+			var tables = new Type[] {
+				typeof(GroongaLoggerUser),
+				typeof(GroongaLoggerStatus),
+				typeof(GroongaLoggerTerm)
+			};
 
-				CreateTables(context, tables);
-			});
+			CreateTables(context, tables);
 		}
 
 		/// <summary>
