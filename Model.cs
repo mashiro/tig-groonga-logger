@@ -50,7 +50,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		public Object IndexScreenName { get; set; }
 		#endregion
 
-		public static explicit operator GroongaLoggerUser(User user)
+		public static GroongaLoggerUser FromUser(User user)
 		{
 			return new GroongaLoggerUser()
 			{
@@ -133,7 +133,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		public Object IndexRetweetedStatus { get; set; }
 		#endregion
 
-		public static explicit operator GroongaLoggerStatus(Status status)
+		public static GroongaLoggerStatus FromStatus(Status status)
 		{
 			return new GroongaLoggerStatus()
 			{
