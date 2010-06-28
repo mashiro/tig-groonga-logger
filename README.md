@@ -3,7 +3,7 @@
 groongaのデータベースでログの保存と参照を行えるようにするTIGアドインです。
 現状groongaがLinuxでしか動かないようなのでMono専用。
 
-インストール
+必要環境
 -------
 apt-get install mecab
 wget http://groonga.org/files/groonga/groonga-0.7.3.tar.gz
