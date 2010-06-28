@@ -7,44 +7,66 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 {
 	public class GroongaLoggerSelectState
 	{
-		public GroongaLoggerOptions Options { get; set; }
-		public Int32 Offset { get; set; }
-		public Int32 Limit { get; set; }
-		public Int32 Total { get; set; }
+		public GroongaLoggerCommandOptions Options { get; private set; }
+		public Int32 Offset { get; private set; }
+		public Int32 Limit { get; private set; }
+		public Int32 Total { get; private set; }
 
-		public void Reset(GroongaLoggerOptions options, Int32 limit, Int32 total)
+		private Int32 LastLimit { get; set; }
+		private Int32 Left { get { return Offset; } }
+		private Int32 Right { get { return Offset + Limit; } }
+
+		public void Reset(GroongaLoggerCommandOptions options, Int32 limit, Int32 total)
 		{
-			Options = new GroongaLoggerOptions(options);
+			Options = new GroongaLoggerCommandOptions(options);
 			Offset = 0;
-			Limit = limit;
+			Limit = Math.Min(limit, total);
 			Total = total;
+			LastLimit = limit;
 			Setup();
 		}
 
 		public Boolean Next(Int32 limit)
 		{
-			if ((Offset + Limit) < Total)
-			{
-				Offset += Limit;
-				Limit = limit;
-				Setup();
-				return true;
-			}
+			if (Right >= Total)
+				return false;
 
-			return false;
+			Offset += LastLimit;
+			LastLimit = limit;
+
+			if (Right > Total)
+			{
+				Limit = Total - Offset;
+			}
+			else
+			{
+				Limit = limit;
+			}
+		
+			Setup();
+			return true;
 		}
 
-		public Boolean Prev(Int32 limit)
+		public Boolean Previous(Int32 limit)
 		{
-			if ((Offset > 0))
+			if (Left <= 0)
+				return false;
+
+			Offset -= LastLimit;
+			LastLimit = limit;
+
+			if (Left < 0)
 			{
-				Offset = Math.Max(0, Offset - Limit);
+				Limit = limit + Offset;
+				Offset = 0;
+			}
+			else
+			{
 				Limit = limit;
-				Setup();
-				return true;
 			}
 
-			return false;
+			Setup();
+			return true;
 		}
 
 		private void Setup()
