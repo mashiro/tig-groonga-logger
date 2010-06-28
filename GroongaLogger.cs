@@ -543,12 +543,12 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 					var response = new GroongaLoggerResponse<GroongaLoggerResponseDataList>();
 					response.Parse(JsonUtility.Parse(result));
 
+					Int32 limit = Int32.Parse(options["limit"]);
+					Int32 total = response.Data.Items.FirstOrDefault().SearchCount ?? 0;
 					if (reset)
-					{
-						Int32 limit = Int32.Parse(options["limit"]);
-						Int32 total = response.Data.Items.FirstOrDefault().SearchCount ?? 0;
 						State.Reset(options, limit, total);
-					}
+					else
+						State.Update(total);
 
 					return response;
 				}

@@ -26,6 +26,11 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 			Setup();
 		}
 
+		public void Update(Int32 total)
+		{
+			Total = total;
+		}
+
 		public Boolean Next(Int32 limit)
 		{
 			if (Right >= Total)
