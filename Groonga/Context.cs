@@ -1,4 +1,4 @@
-using System;
+ï»¿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -69,10 +69,10 @@ namespace Spica.Data.Groonga
 
 		public GroongaContext(GroongaContextFlags flags)
 		{
-			// ƒ‰ƒCƒuƒ‰ƒŠ‚Ì‰Šú‰»(‰‰ñ‚Ì‚İ)
+			// ãƒ©ã‚¤ãƒ–ãƒ©ãƒªã®åˆæœŸåŒ–(åˆå›ã®ã¿)
 			_library.Initialize();
 
-			// ƒRƒ“ƒeƒLƒXƒg‚Ì‰Šú‰»
+			// ã‚³ãƒ³ãƒ†ã‚­ã‚¹ãƒˆã®åˆæœŸåŒ–
 			GroongaResultCode result = GroongaApi.grn_ctx_init(out _context, flags);
 			if (result != GroongaResultCode.Success)
 				throw new GroongaException(result, "grn_ctx_init() faield");
