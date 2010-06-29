@@ -31,8 +31,40 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 			{
 				AddIn.Config = config as GroongaLoggerConfiguration;
 				AddIn.SaveConfig();
+
+				if (memberInfo.Name == "ChannelName" && !String.IsNullOrEmpty(AddIn.Config.ChannelName))
+					AddIn.AttachConsole();
 			}
 		}
+
+		/// <summary>
+		/// コンソールでコマンドを解釈する前に実行する処理
+		/// </summary>
+		[Browsable(false)]
+		public override Boolean OnPreProcessInput(String inputLine)
+		{
+			if (CurrentSession.Config.EnableTypableMap && AddIn.TypableMapCommands != null)
+			{
+				// コンテキスト名を求める
+				StringBuilder sb = new StringBuilder();
+				foreach (Context ctx in Console.ContextStack) sb.Insert(0, ctx.ContextName.Replace("Context", "") + "\\");
+				sb.Append(Console.CurrentContext.ContextName.Replace("Context", ""));
+
+				// PRIVを作成
+				PrivMsgMessage priv = new PrivMsgMessage(Console.ConsoleChannelName, inputLine);
+				priv.SenderNick = sb.ToString();
+				priv.SenderHost = "twitter@" + Server.ServerName;
+
+				// TypableMapCommandProcessorで処理
+				if (AddIn.TypableMapCommands.Process(priv))
+				{
+					return true;
+				}
+			}
+
+			return false;
+		}
+
 
 		[Description("ロギングを有効にします")]
 		public void Enable()
@@ -42,7 +74,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 				AddIn.Config.Enabled = true;
 				AddIn.SaveConfig();
 				AddIn.Setup(AddIn.Config.Enabled);
-				AddIn.NotifyMessage("ロギングを有効にしました。");
+				Console.NotifyMessage("ロギングを有効にしました。");
 			});
 		}
 
@@ -54,7 +86,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 				AddIn.Config.Enabled = false;
 				AddIn.SaveConfig();
 				AddIn.Setup(AddIn.Config.Enabled);
-				AddIn.NotifyMessage("ロギングを無効にしました。");
+				Console.NotifyMessage("ロギングを無効にしました。");
 			});
 		}
 
@@ -158,9 +190,9 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 			}
 			catch (Exception ex)
 			{
-				AddIn.NotifyMessage(ex.Message);
+				Console.NotifyMessage(ex.Message);
 #if DEBUG
-				AddIn.NotifyMessage(ex.StackTrace);
+				Console.NotifyMessage(ex.StackTrace);
 #endif
 			}
 		}
@@ -188,12 +220,14 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 			foreach (var item in items)
 			{
 				var status = ToStatus(item);
-				AddIn.NotifyMessage(status.User.ScreenName, String.Format("{0} {1}",
+				var text = AddIn.ApplyTypableMap(status.Text, status);
+
+				Console.NotifyMessage(status.User.ScreenName, String.Format("{0} {1}",
 					status.CreatedAt.ToString("yyyy/MM/dd HH:mm:ss"),
-					status.Text));
+					text));
 			}
 
-			AddIn.NotifyMessage(String.Format(
+			Console.NotifyMessage(String.Format(
 				"{0:N0} - {1:N0} 件目 / {2:N0} 件 ({3:f2} 秒)",
 				AddIn.State.Offset,
 				AddIn.State.Offset + AddIn.State.Limit,
@@ -223,6 +257,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		public Boolean Enabled { get; set; }
 		public String Host { get; set; }
 		public Int32 Port { get; set; }
+		public String ChannelName { get; set; }
 		public Int32 Limit { get; set; }
 
 		public GroongaLoggerConfiguration()
@@ -230,6 +265,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 			Enabled = false;
 			Host = "localhost";
 			Port = 10041;
+			ChannelName = String.Empty;
 			Limit = 10;
 		}
 	}
@@ -241,23 +277,30 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		public const String DefaultStatusTableName = "twitter_statuses";
 		public const String DefaultTermTableName = "twitter_terms";
 
-		public GroongaLoggerConfiguration Config { get; set; }
-		public String UserTableName { get; set; }
-		public String StatusTableName { get; set; }
-		public String TermTableName { get; set; }
+		public GroongaLoggerConfiguration Config { get; internal set; }
+		public String UserTableName { get; private set; }
+		public String StatusTableName { get; private set; }
+		public String TermTableName { get; private set; }
 
-		public GroongaLoggerSelectState State = new GroongaLoggerSelectState();
+		public Misuzilla.Applications.TwitterIrcGateway.AddIns.Console.Console Console { get; private set; }
+		public GroongaLoggerSelectState State { get; private set; }
+		public TypableMapCommandProcessor TypableMapCommands { get; private set; }
 
 		private Thread _thread = null;
 		private EventWaitHandle _threadEvent = null;
 		private Boolean _isThreadRunning = false;
 		private Object _setupSync = new Object();
 		private Queue<Status> _threadQueue = new Queue<Status>();
-		private TypableMapCommandProcessor _typableMapCommands = null;
+
+		public GroongaLoggerAddIn()
+		{
+			Console = new Misuzilla.Applications.TwitterIrcGateway.AddIns.Console.Console();
+			State = new GroongaLoggerSelectState();
+		}
 
 		public override void Initialize()
 		{
-			base.Initialize();
+			base.Initialize();			
 
 			CurrentSession.PreProcessTimelineStatus += new EventHandler<TimelineStatusEventArgs>(CurrentSession_PreProcessTimelineStatus);
 			CurrentSession.AddInsLoadCompleted += (sender, e) =>
@@ -268,7 +311,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 				// TypableMap
 				var typableMapSupport = CurrentSession.AddInManager.GetAddIn<TypableMapSupport>();
 				if (typableMapSupport != null)
-					_typableMapCommands = typableMapSupport.TypableMapCommands;
+					TypableMapCommands = typableMapSupport.TypableMapCommands;
 
 				// ユニークなテーブル名を設定
 				UserTableName = ToUniqueTableName(DefaultUserTableName);
@@ -278,12 +321,18 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 				// 設定を読み込む
 				Config = CurrentSession.AddInManager.GetConfig<GroongaLoggerConfiguration>();
 				Setup(Config.Enabled);
+
+				// 独自コンソールにアタッチ
+				if (!String.IsNullOrEmpty(Config.ChannelName))
+					AttachConsole();
 			};
 		}
 
 		public override void Uninitialize()
 		{
 			Setup(false);
+
+			Console.Detach();
 			base.Uninitialize();
 		}
 
@@ -301,21 +350,30 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		}
 
 		/// <summary>
-		/// コンソールにメッセージを送信する。
+		/// 独自コンソールにアタッチします
 		/// </summary>
-		public void NotifyMessage(String message)
+		public void AttachConsole()
 		{
-			var console = CurrentSession.AddInManager.GetAddIn<ConsoleAddIn>();
-			console.NotifyMessage(message);
+			DetachConsole();
+			Console.Attach(Config.ChannelName, CurrentServer, CurrentSession, typeof(GroongaLoggerContext), true);
 		}
 
 		/// <summary>
-		/// コンソールにメッセージを送信する。
+		/// 独自コンソールからデタッチします
 		/// </summary>
-		public void NotifyMessage(String senderNick, String message)
+		public void DetachConsole()
 		{
-			var console = CurrentSession.AddInManager.GetAddIn<ConsoleAddIn>();
-			console.NotifyMessage(senderNick, message);
+			if (Console.IsAttached)
+				Console.Detach();
+		}
+
+		/// <summary>
+		/// サーバにエラーメッセージを送信する。
+		/// </summary>
+		/// <param name="message">メッセージ</param>
+		public void SendServerErrorMessage(String message)
+		{
+			CurrentSession.SendServerErrorMessage("GroongaLogger: " + message);
 		}
 
 		#region Logging
@@ -433,15 +491,13 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 					});
 				}, (ex) =>
 				{
-					NotifyMessage(ex.Message);
-					NotifyMessage(ex.StackTrace);
+					SendServerErrorMessage(ex.ToString());
 					return _threadEvent.WaitOne(10 * 1000);
 				});
 			}
 			catch (Exception ex)
 			{
-				NotifyMessage(ex.Message);
-				NotifyMessage(ex.StackTrace);
+				SendServerErrorMessage(ex.ToString());
 			}
 			finally
 			{
@@ -548,9 +604,6 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 				var result = Execute(context, "select {0}", options);
 				if (!String.IsNullOrEmpty(result))
 				{
-#if DEBUG
-					NotifyMessage(options.ToString());
-#endif
 					var response = new GroongaLoggerResponse<GroongaLoggerResponseDataList>();
 					response.Parse(JsonUtility.Parse(result));
 
@@ -730,5 +783,27 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 				yield return (String)item["name"];
 		}
 		#endregion
+
+		/// <summary>
+		/// Twitter の Status に TypableMap をつける
+		/// </summary>
+		public String ApplyTypableMap(String str, Status status)
+		{
+			if (CurrentSession.Config.EnableTypableMap)
+			{
+				if (TypableMapCommands != null)
+				{
+					String typableMapId = TypableMapCommands.TypableMap.Add(status);
+
+					// TypableMapKeyColorNumber = -1 の場合には色がつかなくなる
+					if (CurrentSession.Config.TypableMapKeyColorNumber < 0)
+						return str + String.Format(" ({0})", typableMapId);
+					else
+						return str + String.Format(" \x03{0}({1})\x03", CurrentSession.Config.TypableMapKeyColorNumber, typableMapId);
+				}
+			}
+
+			return str;
+		}
 	}
 }
