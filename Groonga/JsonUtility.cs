@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Linq;
 using System.IO;
@@ -82,10 +83,7 @@ namespace Spica.Data.Groonga
 
 		private static String CreateJsonString(Object obj)
 		{
-			var escaped = obj.ToString()
-				.Replace("\\", "\\\\")
-				.Replace("\"", "\\\"")
-				.Replace("/", "\\/");
+			var escaped = Regex.Replace(obj.ToString(), @"\\|""|/", m => @"\" + m.Value);
 			return "\"" + escaped + "\"";
 		}
 
@@ -133,6 +131,7 @@ namespace Spica.Data.Groonga
 			{
 				case MemberTypes.Field:
 				case MemberTypes.Property:
+					// 匿名型なんかも考慮してIgnoreDataMemberAttributeを持っていないメンバが対象とする
 					var attr = Attribute.GetCustomAttribute(mi, typeof(IgnoreDataMemberAttribute)) as IgnoreDataMemberAttribute;
 					return attr == null;
 
