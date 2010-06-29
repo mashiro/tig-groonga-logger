@@ -12,5 +12,5 @@ export LD_LIBRARY_PATH=/usr/local/groonga/lib:$LD_LIBRARY_PATH
 
 - 使い方
 GroongaLoggerコンテキストでEnableすれば使えるようになります。
-なにやらよくわからないエラーが出る時はgroongaのライブラリへのパスが通ってないのかも。
+なにやらよくわからないエラーが出る時はgroongaのライブラリへのパスが通ってないのかもしれません。
 
