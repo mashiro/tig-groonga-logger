@@ -79,7 +79,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 				case "Float":
 					return Single.Parse(value);
 				case "Time":
-					return GroongaLoggerUtility.ToDateTime(Double.Parse(value));
+					return Double.Parse(value);
 				case "ShortText":
 				case "Text":
 				case "LongText":
