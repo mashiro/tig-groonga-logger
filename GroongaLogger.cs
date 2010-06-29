@@ -167,9 +167,12 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 
 		private GroongaLoggerCommandOptions CreateOptions(String query)
 		{
+			var columnNames = GroongaLoggerUtility.GetDataMemberNames(typeof(GroongaLoggerStatus));
+			var output_columns = String.Join(",", columnNames.ToArray());
+
 			return new GroongaLoggerCommandOptions() {
 				{ "table", AddIn.StatusTableName },
-				{ "output_columns", "created_at,user.screen_name,text" },
+				{ "output_columns", output_columns },
 				{ "query", query },
 				{ "sortby", "-created_at" },
 			};
@@ -184,10 +187,10 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 
 			foreach (var item in items)
 			{
-				var created_at = (DateTime)item["created_at"];
-				var screen_name = (String)item["user.screen_name"];
-				var text = (String)item["text"];
-				AddIn.NotifyMessage(screen_name, String.Format("{0} {1}", created_at.ToString("yyyy/MM/dd HH:mm:ss"), text));
+				var status = ToStatus(item);
+				AddIn.NotifyMessage(status.User.ScreenName, String.Format("{0} {1}",
+					status.CreatedAt.ToString("yyyy/MM/dd HH:mm:ss"),
+					status.Text));
 			}
 
 			AddIn.NotifyMessage(String.Format(
@@ -196,6 +199,11 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 				AddIn.State.Offset + AddIn.State.Limit,
 				AddIn.State.Total,
 				response.Status.ProcessTime));
+		}
+
+		private Status ToStatus(Dictionary<String, Object> item)
+		{
+			return (GroongaLoggerUtility.Parse(typeof(GroongaLoggerStatus), item) as GroongaLoggerStatus).ToStatus();
 		}
 
 		private String Replace(String format, Dictionary<String, Object> items)
@@ -540,6 +548,9 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 				var result = Execute(context, "select {0}", options);
 				if (!String.IsNullOrEmpty(result))
 				{
+#if DEBUG
+					NotifyMessage(options.ToString());
+#endif
 					var response = new GroongaLoggerResponse<GroongaLoggerResponseDataList>();
 					response.Parse(JsonUtility.Parse(result));
 

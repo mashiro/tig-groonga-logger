@@ -3,13 +3,18 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Runtime.Serialization;
+using System.Reflection;
 using Misuzilla.Applications.TwitterIrcGateway;
 
 namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 {
+	public abstract class ModelBase
+	{
+	}
+
 	[DataContract]
 	[GroongaLoggerTable(Name = GroongaLoggerAddIn.DefaultUserTableName, Flags = "TABLE_HASH_KEY", KeyType = "ShortText")]
-	public class GroongaLoggerUser
+	public class GroongaLoggerUser : ModelBase
 	{
 		[DataMember(Name = "_key")]
 		public String Id { get; set; }
@@ -50,6 +55,22 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		public Object IndexScreenName { get; set; }
 		#endregion
 
+		public User ToUser()
+		{
+			return new User()
+			{
+				Id = Int32.Parse(this.Id),
+				Name = this.Name,
+				ScreenName = this.ScreenName,
+				Location = this.Location,
+				Description = this.Description,
+				ProfileImageUrl = this.ProfileImageUrl,
+				Url = this.Url,
+				Protected = this.Protected,
+				Status = null,
+			};
+		}
+
 		public static GroongaLoggerUser FromUser(User user)
 		{
 			return new GroongaLoggerUser()
@@ -68,7 +89,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 
 	[DataContract]
 	[GroongaLoggerTable(Name = GroongaLoggerAddIn.DefaultStatusTableName, Flags = "TABLE_HASH_KEY", KeyType = "ShortText")]
-	public class GroongaLoggerStatus
+	public class GroongaLoggerStatus : ModelBase
 	{
 		[DataMember(Name = "_key")]
 		public String Id { get; set; }
@@ -112,12 +133,12 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		public String InReplyToUserId { get; set; }
 
 		[DataMember(Name = "retweeted_status")]
-		[GroongaLoggerColumn(Name = "retweeted_status", Flags = "COLUMN_SCALAR", Type = GroongaLoggerAddIn.DefaultStatusTableName)]
-		public String RetweetedStatus { get; set; }
+		[GroongaLoggerColumn(Name = "retweeted_status", Flags = "COLUMN_SCALAR", Type = GroongaLoggerAddIn.DefaultStatusTableName, ColumnType = typeof(GroongaLoggerStatus))]
+		public Object RetweetedStatus { get; set; }
 
 		[DataMember(Name = "user")]
-		[GroongaLoggerColumn(Name = "user", Flags = "COLUMN_SCALAR", Type = GroongaLoggerAddIn.DefaultUserTableName)]
-		public String User { get; set; }
+		[GroongaLoggerColumn(Name = "user", Flags = "COLUMN_SCALAR", Type = GroongaLoggerAddIn.DefaultUserTableName, ColumnType = typeof(GroongaLoggerUser))]
+		public Object User { get; set; }
 
 		#region Index
 		[IgnoreDataMember]
@@ -132,6 +153,32 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		[GroongaLoggerColumn(Name = "index_retweeted_status", Flags = "COLUMN_INDEX", Type = GroongaLoggerAddIn.DefaultStatusTableName, Source = "retweeted_status")]
 		public Object IndexRetweetedStatus { get; set; }
 		#endregion
+
+		public Status ToStatus()
+		{
+			var status = new Status()
+			{
+				Id = Int64.Parse(this.Id),
+				CreatedAt = this.CreatedAt,
+				Text = this.Text,
+				Source = this.Source,
+				Truncated = this.Truncated,
+				Favorited = this.Favorited.ToString(),
+				InReplyToStatusId = this.InReplyToStatusId,
+				InReplyToUserId = this.InReplyToUserId,
+				RetweetedStatus = null,
+			};
+
+			var retweetedStatus = this.RetweetedStatus as GroongaLoggerStatus;
+			if (retweetedStatus != null && !String.IsNullOrEmpty(retweetedStatus.Id))
+				status.RetweetedStatus = retweetedStatus.ToStatus();
+
+			var user = this.User as GroongaLoggerUser;
+			if (user != null && !String.IsNullOrEmpty(user.Id))
+				status.User = user.ToUser();
+
+			return status;
+		}
 
 		public static GroongaLoggerStatus FromStatus(Status status)
 		{
@@ -152,7 +199,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 	}
 
 	[GroongaLoggerTable(Name = GroongaLoggerAddIn.DefaultTermTableName, Flags = "TABLE_PAT_KEY|KEY_NORMALIZE", KeyType = "ShortText", DefaultTokenizer = "TokenMecab")]
-	public class GroongaLoggerTerm
+	public class GroongaLoggerTerm : ModelBase
 	{
 		#region Index
 		[IgnoreDataMember]
