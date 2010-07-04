@@ -21,7 +21,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		{
 			var elements = e.Elements();
 			StatusCode = (Int32)elements.ElementAt(0);
-			ProcessStartTime = GroongaLoggerUtility.ToDateTime((Double)elements.ElementAt(1));
+			ProcessStartTime = GroongaLoggerUtility.UnixTimeToDateTime((Double)elements.ElementAt(1));
 			ProcessTime = (Double)elements.ElementAt(2);
 		}
 	}
