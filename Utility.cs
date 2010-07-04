@@ -10,32 +10,37 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 {
 	public static class GroongaLoggerUtility
 	{
-		internal static XElement IndexOf(this XElement e, Int32 index)
+		internal static IEnumerable<MemberInfo> GetFieldOrPropertyMembers(this Type type)
 		{
-			return e.Elements().ElementAt(index);
+			return type.GetMembers(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+				.Where(mi => mi.MemberType == MemberTypes.Field || mi.MemberType == MemberTypes.Property);
+		}
+
+		#region Conversion
+		private const SByte SByteZero = 0;
+		private const SByte SByteOne = 1;
+		public static SByte BooleanToSByte(Boolean value)
+		{
+			return value ? SByteOne : SByteZero;
+		}
+
+		public static Boolean SByteToBoolean(SByte value)
+		{
+			return value != SByteZero;
 		}
 
 		private static readonly DateTime _originDateTime = new DateTime(1970, 1, 1, 0, 0, 0);
-		public static Double ToUnixTime(DateTime dateTime)
+		public static Double DateTimeToUnixTime(DateTime dateTime)
 		{
 			TimeSpan timeSpan = dateTime - _originDateTime;
 			return timeSpan.TotalSeconds;
 		}
 
-		public static DateTime ToDateTime(Double unixTime)
+		public static DateTime UnixTimeToDateTime(Double unixTime)
 		{
 			return _originDateTime.AddSeconds(unixTime);
 		}
-
-		public static String ToString<T>(T value) where T : class
-		{
-			return value != null ? value.ToString() : String.Empty;
-		}
-
-		public static String ToString<T, TResult>(T value, Func<T, TResult> selector) where T : class
-		{
-			return value != null ? selector(value).ToString() : String.Empty;
-		}
+		#endregion
 
 		#region ValueOrDefault
 		public static T ValueOrDefault<T>(T value)
@@ -62,8 +67,6 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 			return value != null ? selector(value) : defaultValue;
 		}
 		#endregion
-
-
 
 		#region Parse
 		public static Object Parse(Type type, Dictionary<String, Object> data)
@@ -100,8 +103,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 
 		public static IEnumerable<MemberInfo> GetDataMembers(Type type)
 		{
-			var members = type.GetMembers(BindingFlags.Instance | BindingFlags.Public)
-				.Where(mi => mi.MemberType == MemberTypes.Field || mi.MemberType == MemberTypes.Property)
+			var members = type.GetFieldOrPropertyMembers()
 				.Where(mi => GetCustomAttribute<DataMemberAttribute>(mi) != null);
 
 			return members;
