@@ -8,7 +8,11 @@ using Misuzilla.Applications.TwitterIrcGateway;
 
 namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 {
-	public abstract class ModelBase
+	public interface IModel
+	{
+	}
+
+	public abstract class ModelBase : IModel
 	{
 	}
 
@@ -44,15 +48,15 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		public String Url { get; set; }
 
 		[DataMember(Name = "protected")]
-		[GroongaLoggerColumn(Name = "protected", Flags = "COLUMN_SCALAR", Type = "Int32")]
-		public Int32 _protected { get; set; }
+		[GroongaLoggerColumn(Name = "protected", Flags = "COLUMN_SCALAR", Type = "Int8")]
+		private SByte _protected { get; set; }
 		[IgnoreDataMember]
-		public Boolean Protected { get { return _protected != 0; } set { _protected = value ? 1 : 0; } }
+		public Boolean Protected { get { return GroongaLoggerUtility.SByteToBoolean(_protected); } set { _protected = GroongaLoggerUtility.BooleanToSByte(value); } }
 
 		#region Index
 		[IgnoreDataMember]
 		[GroongaLoggerColumn(Name = "index_screen_name", Flags = "COLUMN_INDEX", Type = GroongaLoggerAddIn.DefaultUserTableName, Source = "screen_name")]
-		public Object IndexScreenName { get; set; }
+		private Object IndexScreenName { get; set; }
 		#endregion
 
 		public User ToUser()
@@ -96,13 +100,9 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 
 		[DataMember(Name = "created_at")]
 		[GroongaLoggerColumn(Name = "created_at", Flags = "COLUMN_SCALAR", Type = "Time")]
-		public Double _createdAt;
+		private Double _createdAt;
 		[IgnoreDataMember]
-		public DateTime CreatedAt
-		{
-			get { return GroongaLoggerUtility.ToDateTime(_createdAt); }
-			set { _createdAt = GroongaLoggerUtility.ToUnixTime(value); }
-		}
+		public DateTime CreatedAt { get { return GroongaLoggerUtility.UnixTimeToDateTime(_createdAt); } set { _createdAt = GroongaLoggerUtility.DateTimeToUnixTime(value); } }
 
 		[DataMember(Name = "text")]
 		[GroongaLoggerColumn(Name = "text", Flags = "COLUMN_SCALAR", Type = "ShortText")]
@@ -113,16 +113,16 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		public String Source { get; set; }
 
 		[DataMember(Name = "truncated")]
-		[GroongaLoggerColumn(Name = "truncated", Flags = "COLUMN_SCALAR", Type = "Int32")]
-		public Int32 _truncated { get; set; }
+		[GroongaLoggerColumn(Name = "truncated", Flags = "COLUMN_SCALAR", Type = "Int8")]
+		private SByte _truncated { get; set; }
 		[IgnoreDataMember]
-		public Boolean Truncated { get { return _truncated != 0; } set { _truncated = value ? 1 : 0; } }
+		public Boolean Truncated { get { return GroongaLoggerUtility.SByteToBoolean(_truncated); } set { _truncated = GroongaLoggerUtility.BooleanToSByte(value); } }
 
 		[DataMember(Name = "favorited")]
-		[GroongaLoggerColumn(Name = "favorited", Flags = "COLUMN_SCALAR", Type = "Int32")]
-		public Int32 _favorited { get; set; }
+		[GroongaLoggerColumn(Name = "favorited", Flags = "COLUMN_SCALAR", Type = "Int8")]
+		private SByte _favorited { get; set; }
 		[IgnoreDataMember]
-		public Boolean Favorited { get { return _favorited != 0; } set { _favorited = value ? 1 : 0; } }
+		public Boolean Favorited { get { return GroongaLoggerUtility.SByteToBoolean(_truncated); } set { _favorited = GroongaLoggerUtility.BooleanToSByte(value); } }
 
 		[DataMember(Name = "in_reply_to_status_id")]
 		[GroongaLoggerColumn(Name = "in_reply_to_status_id", Flags = "COLUMN_SCALAR", Type = GroongaLoggerAddIn.DefaultStatusTableName)]
@@ -142,16 +142,20 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 
 		#region Index
 		[IgnoreDataMember]
+		[GroongaLoggerColumn(Name = "index_created_at", Flags = "COLUMN_INDEX", Type = GroongaLoggerAddIn.DefaultStatusTableName, Source = "created_at")]
+		private Object IndexCreatedAt { get; set; }
+
+		[IgnoreDataMember]
 		[GroongaLoggerColumn(Name = "index_in_reply_to_status_id", Flags = "COLUMN_INDEX", Type = GroongaLoggerAddIn.DefaultStatusTableName, Source = "in_reply_to_status_id")]
-		public Object IndexInReplyToStatusId { get; set; }
+		private Object IndexInReplyToStatusId { get; set; }
 
 		[IgnoreDataMember]
 		[GroongaLoggerColumn(Name = "index_in_reply_to_user_id", Flags = "COLUMN_INDEX", Type = GroongaLoggerAddIn.DefaultUserTableName, Source = "in_reply_to_user_id")]
-		public Object IndexInReplyToUserId { get; set; }
+		private Object IndexInReplyToUserId { get; set; }
 
 		[IgnoreDataMember]
 		[GroongaLoggerColumn(Name = "index_retweeted_status", Flags = "COLUMN_INDEX", Type = GroongaLoggerAddIn.DefaultStatusTableName, Source = "retweeted_status")]
-		public Object IndexRetweetedStatus { get; set; }
+		private Object IndexRetweetedStatus { get; set; }
 		#endregion
 
 		public Status ToStatus()
@@ -204,19 +208,19 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		#region Index
 		[IgnoreDataMember]
 		[GroongaLoggerColumn(Name = "index_name", Flags = "COLUMN_INDEX|WITH_POSITION|WITH_SECTION", Type = GroongaLoggerAddIn.DefaultUserTableName, Source = "name")]
-		public Object IndexName { get; set; }
+		private Object IndexName { get; set; }
 
 		[IgnoreDataMember]
 		[GroongaLoggerColumn(Name = "index_location", Flags = "COLUMN_INDEX|WITH_POSITION|WITH_SECTION", Type = GroongaLoggerAddIn.DefaultUserTableName, Source = "location")]
-		public Object IndexLocation { get; set; }
+		private Object IndexLocation { get; set; }
 
 		[IgnoreDataMember]
 		[GroongaLoggerColumn(Name = "index_description", Flags = "COLUMN_INDEX|WITH_POSITION|WITH_SECTION", Type = GroongaLoggerAddIn.DefaultUserTableName, Source = "description")]
-		public Object IndexDescription { get; set; }
+		private Object IndexDescription { get; set; }
 
 		[IgnoreDataMember]
 		[GroongaLoggerColumn(Name = "index_text", Flags = "COLUMN_INDEX|WITH_POSITION|WITH_SECTION", Type = GroongaLoggerAddIn.DefaultStatusTableName, Source = "text")]
-		public Object IndexText { get; set; }
+		private Object IndexText { get; set; }
 		#endregion
 	}
 }
