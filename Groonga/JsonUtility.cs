@@ -90,7 +90,7 @@ namespace Spica.Data.Groonga
 		private static String CreateJsonObject(Object obj)
 		{
 			var items = obj.GetType()
-				.GetMembers(BindingFlags.Public | BindingFlags.Instance)
+				.GetMembers(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
 				.Where(mi => IsDataMember(mi))
 				.Select(mi => new { Name = GetDataMemberName(mi), Value = GetDataMemberValue(mi, obj) })
 				.Select(arg => String.Format("\"{0}\":{1}", arg.Name, CreateJsonValue(arg.Value)));
