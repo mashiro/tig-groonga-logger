@@ -19,6 +19,18 @@ using Spica.Data.Groonga;
 
 namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 {
+	[Serializable]
+	public class GroongaLoggerException : Exception
+	{
+		public GroongaLoggerException() { }
+		public GroongaLoggerException(string message) : base(message) { }
+		public GroongaLoggerException(string message, Exception inner) : base(message, inner) { }
+		protected GroongaLoggerException(
+		  SerializationInfo info,
+		  StreamingContext context)
+			: base(info, context) { }
+	}
+
 	[Description("ロガーの設定を行うコンテキストに切り替えます")]
 	public class GroongaLoggerContext : Context
 	{
@@ -95,8 +107,11 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		{
 			ErrorHandler(() =>
 			{
-				var options = CreateOptions(query);
-				FindInternal(options, true);
+				AsyncSingle(() =>
+				{
+					var options = CreateOptions(query);
+					FindInternal(options, true);
+				});
 			});
 		}
 
@@ -105,15 +120,18 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		{
 			ErrorHandler(() =>
 			{
-				if (!String.IsNullOrEmpty(screenName))
+				AsyncSingle(() =>
 				{
-					var options = CreateOptions("user.screen_name:" + screenName);
-					FindInternal(options, true);
-				}
-				else
-				{
-					throw new ArgumentException("ユーザ名に空の文字列は指定できません。", "screenName");
-				}
+					if (!String.IsNullOrEmpty(screenName))
+					{
+						var options = CreateOptions("user.screen_name:" + screenName);
+						FindInternal(options, true);
+					}
+					else
+					{
+						throw new ArgumentException("ユーザ名に空の文字列は指定できません。", "screenName");
+					}
+				});
 			});
 		}
 
@@ -122,19 +140,22 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		{
 			ErrorHandler(() =>
 			{
-				if (!String.IsNullOrEmpty(text))
+				AsyncSingle(() =>
 				{
-					// 条件式が指定されてなければデフォルトで全文検索
-					if (!Regex.IsMatch(text, @"^(!|<=?|>=?|@|\^|\$)"))
-						text = "@" + text;
+					if (!String.IsNullOrEmpty(text))
+					{
+						// 条件式が指定されてなければデフォルトで全文検索
+						if (!Regex.IsMatch(text, @"^(!|<=?|>=?|@|\^|\$)"))
+							text = "@" + text;
 
-					var options = CreateOptions("text:" + text);
-					FindInternal(options, true);
-				}
-				else
-				{
-					throw new ArgumentException("テキストに空の文字列は指定できません。", "text");
-				}
+						var options = CreateOptions("text:" + text);
+						FindInternal(options, true);
+					}
+					else
+					{
+						throw new ArgumentException("テキストに空の文字列は指定できません。", "text");
+					}
+				});
 			});
 		}
 
@@ -143,20 +164,23 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		{
 			ErrorHandler(() =>
 			{
-				Int32? numLimit = null;
-				if (!String.IsNullOrEmpty(limit))
+				AsyncSingle(() =>
 				{
-					Int32 tmp;
-					if (!Int32.TryParse(limit, out tmp))
-						throw new ArgumentException("正しい数値を指定してください。", "limit");
-					else
-						numLimit = tmp;
-				}
+					Int32? numLimit = null;
+					if (!String.IsNullOrEmpty(limit))
+					{
+						Int32 tmp;
+						if (!Int32.TryParse(limit, out tmp))
+							throw new ArgumentException("正しい数値を指定してください。", "limit");
+						else
+							numLimit = tmp;
+					}
 
-				if (AddIn.State.Next(numLimit ?? AddIn.Config.Limit))
-					FindInternal(AddIn.State.Options, false);
-				else
-					throw new InvalidOperationException("次のページは存在しません。");
+					if (AddIn.State.Next(numLimit ?? AddIn.Config.Limit))
+						FindInternal(AddIn.State.Options, false);
+					else
+						throw new InvalidOperationException("次のページは存在しません。");
+				});
 			});
 		}
 
@@ -165,20 +189,23 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		{
 			ErrorHandler(() =>
 			{
-				Int32? numLimit = null;
-				if (!String.IsNullOrEmpty(limit))
+				AsyncSingle(() =>
 				{
-					Int32 tmp;
-					if (!Int32.TryParse(limit, out tmp))
-						throw new ArgumentException("正しい数値を指定してください。", "limit");
-					else
-						numLimit = tmp;
-				}
+					Int32? numLimit = null;
+					if (!String.IsNullOrEmpty(limit))
+					{
+						Int32 tmp;
+						if (!Int32.TryParse(limit, out tmp))
+							throw new ArgumentException("正しい数値を指定してください。", "limit");
+						else
+							numLimit = tmp;
+					}
 
-				if (AddIn.State.Previous(numLimit ?? AddIn.Config.Limit))
-					FindInternal(AddIn.State.Options, false);
-				else
-					throw new InvalidOperationException("前のページは存在しません。");
+					if (AddIn.State.Previous(numLimit ?? AddIn.Config.Limit))
+						FindInternal(AddIn.State.Options, false);
+					else
+						throw new InvalidOperationException("前のページは存在しません。");
+				});
 			});
 		}
 
@@ -235,6 +262,25 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 				response.Status.ProcessTime));
 		}
 
+		private Object _asyncSingleObject = new Object();
+		private void AsyncSingle(Action action)
+		{
+			ThreadPool.QueueUserWorkItem(state =>
+			{
+				if (Monitor.TryEnter(_asyncSingleObject))
+				{
+					try
+					{
+						action();
+					}
+					finally
+					{
+						Monitor.Exit(_asyncSingleObject);
+					}
+				}
+			});
+		}
+
 		private Status ToStatus(Dictionary<String, Object> item)
 		{
 			return (GroongaLoggerUtility.Parse(typeof(GroongaLoggerStatus), item) as GroongaLoggerStatus).ToStatus();
@@ -289,6 +335,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		private Thread _thread = null;
 		private EventWaitHandle _threadEvent = null;
 		private Boolean _isThreadRunning = false;
+		private Boolean _requireExit = false;
 		private Object _setupSync = new Object();
 		private Queue<Status> _threadQueue = new Queue<Status>();
 
@@ -388,7 +435,8 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 				// stop
 				if (_isThreadRunning)
 				{
-					_threadEvent.Set();
+					_requireExit = true;
+					_threadEvent.Set();					
 					_thread.Join();
 				}
 
@@ -406,6 +454,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 				// setup
 				if (isStart)
 				{
+					_requireExit = false;
 					_threadEvent = new EventWaitHandle(false, EventResetMode.AutoReset);
 					_thread = new Thread(LoggingThread);
 					_thread.Start();
@@ -421,7 +470,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 		public void Enqueue(Status status)
 		{
 			// スレッドが起動してる時のみ
-			if (_isThreadRunning)
+			if (_isThreadRunning && !_requireExit)
 			{
 				lock (_threadQueue)
 				{
@@ -469,10 +518,12 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 						// テーブルを初期化
 						InitializeTables(context);
 
+						var statuses = new List<Status>();
 						while (true)
 						{
+							statuses.Clear();
+
 							// キューから取れるだけ取ってくる
-							var statuses = new List<Status>();
 							lock (_threadQueue)
 							{
 								statuses.AddRange(_threadQueue);
@@ -483,7 +534,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 							StoreStatuses(context, statuses);
 
 							// 待機
-							if (_threadEvent.WaitOne(10 * 1000))
+							if (_threadEvent.WaitOne(5 * 1000))
 								break;
 
 							success();
@@ -616,8 +667,10 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 
 					return response;
 				}
-
-				return null;
+				else
+				{
+					throw new GroongaLoggerException("空のレスポンスを受け取りました。");
+				}
 			});
 		}
 		#endregion
@@ -658,9 +711,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 						CreateTable(context, attribute);
 
 					// カラムの作成
-					CreateColumns(context, attribute.Name, table
-						.GetMembers(BindingFlags.CreateInstance | BindingFlags.Public | BindingFlags.Instance)
-						.Where(mi => mi.MemberType == MemberTypes.Field || mi.MemberType == MemberTypes.Property));
+					CreateColumns(context, attribute.Name, table.GetFieldOrPropertyMembers());
 				}
 			}
 		}
