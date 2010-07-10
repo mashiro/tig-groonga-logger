@@ -31,7 +31,7 @@ namespace Spica.Applications.TwitterIrcGateway.AddIns.GroongaLogger
 			: base(info, context) { }
 	}
 
-	[Description("ロガーの設定を行うコンテキストに切り替えます")]
+	[Description("ログの設定を行うコンテキストに切り替えます")]
 	public class GroongaLoggerContext : Context
 	{
 		private GroongaLoggerAddIn AddIn { get { return CurrentSession.AddInManager.GetAddIn<GroongaLoggerAddIn>(); } }
