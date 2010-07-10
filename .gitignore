@@ -3,5 +3,5 @@ obj/
 *.sln
 *.suo
 *.user
-TwitterIrcGatewayCore.dll
+*.dll
 Groonga/tig
